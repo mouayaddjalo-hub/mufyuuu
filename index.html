@@ -10,7 +10,7 @@
     <title>文字冒险</title>
     <!-- mobile-single-file-build: 2026-06-30 -->
     <style>
-:root {
+﻿:root {
   --bg: #fff7fb;
   --surface: rgba(255, 255, 255, 0.88);
   --surface-strong: rgba(255, 242, 248, 0.9);
@@ -553,16 +553,6 @@ textarea {
   touch-action: none;
 }
 
-.drawer-tab::after {
-  content: "🐰";
-  position: absolute;
-  right: -5px;
-  top: -16px;
-  font-size: 18px;
-  filter: drop-shadow(0 2px 3px rgba(232, 88, 151, 0.28));
-  pointer-events: none;
-}
-
 .drawer-tab::before {
   content: "";
   width: 7px;
@@ -1024,463 +1014,94 @@ textarea {
     max-height: min(58dvh, calc(100dvh - 230px - env(safe-area-inset-top) - env(safe-area-inset-bottom))) !important;
   }
 }
+/* Soft bunny sketch skin: final clean visual layer, no stripes, no emoji. */
+:root {
+  --cute-font: "Arial Rounded MT Bold", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  --cute-border: 2px solid rgba(244, 166, 202, 0.58);
+  --cute-dashed: 2px dashed rgba(231, 124, 174, 0.42);
+  --cute-panel: rgba(255, 255, 255, 0.62);
+  --cute-panel-strong: rgba(255, 248, 252, 0.78);
+  --cute-shadow: 0 16px 32px rgba(225, 111, 164, 0.13);
+}
 
-/* Final override placed at EOF so no older skin can cover it. */
+html,
 body {
-  background:
-    linear-gradient(rgba(255, 247, 251, 0.14), rgba(255, 247, 251, 0.3)),
-    url("./assets/chat-bg.jpg") center / cover no-repeat fixed !important;
+  background: #fff4f9 !important;
+}
+
+body {
+  font-family: var(--cute-font) !important;
+  font-weight: 700;
 }
 
 body::before {
+  content: "" !important;
+  position: fixed !important;
   inset: 0 !important;
-  top: 0 !important;
-  bottom: 0 !important;
-  height: auto !important;
   z-index: -2 !important;
-  background:
-    linear-gradient(rgba(255, 247, 251, 0.08), rgba(255, 247, 251, 0.22)),
-    url("./assets/chat-bg.jpg") center / cover no-repeat !important;
-  opacity: 0.82 !important;
-  transform: none !important;
-}
-
-body::after {
-  inset: 0 !important;
-  top: 0 !important;
-  bottom: 0 !important;
-  height: auto !important;
-  z-index: -1 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
   background-image:
-    radial-gradient(circle, rgba(255, 143, 189, 0.36) 0 2px, transparent 2.6px),
-    radial-gradient(circle, rgba(255, 255, 255, 0.52) 0 2px, transparent 2.6px) !important;
-  background-size: 76px 76px, 112px 112px !important;
-  background-position: 12px 18px, 42px 56px !important;
-  opacity: 0.38 !important;
+    linear-gradient(rgba(255, 246, 250, 0.08), rgba(255, 246, 250, 0.22)),
+    url("assets/chat-bg.jpg") !important;
+  background-size: cover !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
+  opacity: 1 !important;
   transform: none !important;
-}
-
-.app-shell,
-.page-layer {
-  background:
-    linear-gradient(rgba(255, 247, 251, 0.34), rgba(255, 247, 251, 0.48)),
-    url("./assets/chat-bg.jpg") center / cover no-repeat !important;
-}
-
-.topbar,
-.page-header,
-.memory-footer {
-  background: rgba(255, 248, 252, 0.76) !important;
-  border-color: rgba(255, 160, 202, 0.54) !important;
-  backdrop-filter: blur(14px);
-}
-
-.empty-state,
-.ai-card,
-.player-bubble,
-.modal,
-.large-box,
-.settings-band,
-.sidebar-content,
-.character-card,
-.relation-card,
-.memory-item,
-.npc-card {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 242, 249, 0.62)) padding-box,
-    repeating-linear-gradient(90deg, rgba(255, 199, 225, 0.8) 0 9px, rgba(255, 255, 255, 0.8) 9px 18px) border-box !important;
-  border: 3px solid transparent !important;
-  box-shadow: 0 16px 30px rgba(226, 93, 151, 0.13) !important;
-  backdrop-filter: blur(10px);
-}
-
-.dialogue-box {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.64), rgba(255, 241, 248, 0.54)) padding-box,
-    repeating-linear-gradient(90deg, rgba(255, 208, 228, 0.76) 0 9px, rgba(255, 255, 255, 0.7) 9px 18px) border-box !important;
-  border: 3px solid transparent !important;
-  border-radius: 24px !important;
-  backdrop-filter: blur(8px);
-}
-
-.dialogue-box::before {
-  content: "୨୧" !important;
-  left: 18px !important;
-  right: auto !important;
-  top: -14px !important;
-  bottom: auto !important;
-  height: auto !important;
-  background: transparent !important;
-  color: var(--pink-deep) !important;
-  font-size: 16px !important;
-}
-
-.dialogue-box::after {
-  content: "" !important;
-  inset: 7px !important;
-  border: 1px dotted rgba(255, 143, 189, 0.5) !important;
-  border-radius: 18px !important;
-  background: transparent !important;
-}
-
-.ai-card::before,
-.ai-card::after {
-  content: "" !important;
-  position: absolute !important;
-  top: -14px !important;
-  width: 18px !important;
-  height: 26px !important;
-  background: rgba(255, 255, 255, 0.88) !important;
-  border: 2px solid rgba(255, 143, 189, 0.68) !important;
-  border-bottom: 0 !important;
-  border-radius: 18px 18px 5px 5px !important;
   pointer-events: none !important;
 }
 
-.ai-card::before {
-  left: 24px !important;
-  right: auto !important;
-  transform: rotate(-18deg) !important;
-}
-
-.ai-card::after {
-  left: 48px !important;
-  right: auto !important;
-  transform: rotate(18deg) !important;
-}
-
-.empty-state::before,
-.modal::before,
-.large-box::before,
-.settings-band::before,
-.sidebar-content::before {
-  content: "୨୧" !important;
-  position: absolute !important;
-  left: 18px !important;
-  right: auto !important;
-  top: -14px !important;
-  height: auto !important;
-  background: transparent !important;
-  color: var(--pink-deep) !important;
-  font-size: 18px !important;
-  opacity: 0.82 !important;
-}
-
-.env-strip {
-  background:
-    linear-gradient(180deg, rgba(255, 247, 251, 0.82), rgba(255, 236, 245, 0.74)) padding-box,
-    repeating-linear-gradient(90deg, rgba(255, 207, 228, 0.9) 0 8px, rgba(255, 255, 255, 0.8) 8px 16px) border-box !important;
-}
-
-@media (max-width: 540px) {
-  body {
-    font-size: 15px;
-  }
-
-  .topbar {
-    padding: calc(7px + env(safe-area-inset-top)) 8px 7px 54px;
-  }
-
-  .topbar-actions {
-    width: 100%;
-    justify-content: flex-end;
-    gap: 6px;
-  }
-
-  .icon-text-button,
-  .send-button,
-  .ghost-button,
-  .danger-button {
-    padding: 7px 10px;
-    min-height: 36px;
-    font-size: 14px;
-  }
-
-  .input-bar {
-    bottom: max(8px, env(safe-area-inset-bottom));
-    width: calc(100% - 12px);
-    gap: 7px;
-    padding: 8px;
-    border-radius: 18px;
-  }
-
-  .chat-log {
-    width: calc(100% - 10px);
-    padding-top: calc(58px + env(safe-area-inset-top));
-    padding-bottom: calc(104px + env(safe-area-inset-bottom));
-  }
-
-  .empty-state {
-    margin-top: 18px;
-    padding: 16px;
-    border-radius: 16px;
-  }
-
-  .round-button {
-    flex-basis: 40px;
-    width: 40px;
-    height: 40px;
-    font-size: 22px;
-  }
-
-  .input-bar textarea {
-    min-height: 40px;
-    max-height: 118px;
-    padding: 9px 11px;
-    font-size: 15px;
-  }
-
-  .input-bar .send-button {
-    flex: 0 0 auto;
-    padding-left: 12px;
-    padding-right: 12px;
-  }
-
-  .player-bubble {
-    max-width: 96%;
-    padding: 12px;
-  }
-
-  .ai-card {
-    padding: 10px;
-    border-radius: 16px;
-  }
-
-  .env-strip {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 6px;
-    padding: 8px;
-    font-size: 14px;
-  }
-
-  .story-body {
-    padding: 12px 2px 2px;
-  }
-
-  .story-body p {
-    margin-bottom: 16px;
-    line-height: 1.82;
-  }
-
-  .dialogue-box {
-    padding: 11px 12px;
-    margin-bottom: 16px;
-  }
-
-  .button-row {
-    gap: 7px;
-  }
-
-  .message-action {
-    min-height: 34px;
-    padding: 6px 11px;
-  }
-
-  .side-drawer {
-    width: 96px;
-    height: 160px;
-    transform: translate(calc(-100% + 30px + var(--drag-x, 0px)), -50%);
-  }
-
-  .side-drawer.open {
-    transform: translate(0, -50%);
-  }
-
-  .drawer-tab {
-    right: -15px;
-    width: 30px;
-    height: 74px;
-    border-radius: 0 14px 14px 0;
-  }
-
-  .sidebar-icons {
-    width: 66px;
-    min-height: 160px;
-    padding: 10px 8px 10px 7px;
-    border-radius: 0 20px 20px 0;
-  }
-
-  .sidebar-icon {
-    width: 42px;
-    height: 42px;
-  }
-
-  .sidebar-content {
-    left: 68px;
-    top: 50%;
-    width: min(78vw, 300px);
-    max-height: min(58vh, calc(100vh - 230px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
-    max-height: min(58dvh, calc(100dvh - 230px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
-    padding: 10px;
-    border-radius: 18px;
-  }
-
-  .panel h2,
-  .large-box h2,
-  .settings-band h2,
-  .modal h2,
-  .page-header h1 {
-    font-size: 19px;
-  }
-
-  .character-card,
-  .relation-card,
-  .memory-item,
-  .npc-card {
-    padding: 11px;
-    border-radius: 12px;
-  }
-
-  .modal-backdrop {
-    align-items: end;
-    padding: 10px;
-  }
-
-  .modal {
-    max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-    overflow-y: auto;
-    padding: 16px;
-    border-radius: 18px;
-  }
-
-  .modal textarea {
-    max-height: 46dvh;
-  }
-
-  .modal-actions {
-    gap: 8px;
-  }
-
-  .page-layer {
-    padding: 0;
-    min-height: 100vh;
-    min-height: 100dvh;
-  }
-
-  .page-header {
-    grid-template-columns: auto 1fr auto;
-    gap: 8px;
-    padding: calc(8px + env(safe-area-inset-top)) 10px 8px;
-  }
-
-  .home-grid,
-  .settings-band,
-  .memory-list {
-    width: calc(100% - 12px);
-  }
-
-  .home-grid {
-    margin: 10px auto;
-    gap: 10px;
-  }
-
-  .large-box,
-  .settings-band {
-    padding: 12px;
-    border-radius: 16px;
-  }
-
-  .section-title-row {
-    align-items: flex-start;
-  }
-
-  .api-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .api-status {
-    grid-column: 1 / -1;
-    width: 100%;
-  }
-
-  .settings-band {
-    margin-bottom: calc(18px + env(safe-area-inset-bottom));
-  }
-
-  .memory-list {
-    margin-top: 10px;
-    margin-bottom: calc(78px + env(safe-area-inset-bottom));
-  }
-
-  .memory-footer {
-    padding: 10px;
-    padding-bottom: max(10px, env(safe-area-inset-bottom));
-  }
-}
-
-.sidebar-content {
-  position: absolute;
-  left: 78px;
-  top: 50%;
-  transform: translate(-12px, -50%) scale(0.98);
-  max-height: min(62vh, calc(100vh - 210px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
-  max-height: min(62dvh, calc(100dvh - 210px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
-}
-
-.side-drawer.panel-open .sidebar-content {
-  transform: translate(0, -50%) scale(1);
-}
-
-@media (max-width: 540px) {
-  .sidebar-content {
-    left: 68px;
-    top: 50%;
-    max-height: min(58vh, calc(100vh - 230px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
-    max-height: min(58dvh, calc(100dvh - 230px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
-  }
-}
-
-/* Final dreamy skin override: image background + translucent lace cards */
-body {
-  background:
-    radial-gradient(circle at 10% 16%, rgba(255, 214, 232, 0.36), transparent 28%),
-    radial-gradient(circle at 90% 12%, rgba(255, 236, 246, 0.48), transparent 30%),
-    #fff7fb;
-}
-
-body::before {
-  inset: 0;
-  top: 0;
-  bottom: 0;
-  height: auto;
-  z-index: -2;
-  background:
-    linear-gradient(rgba(255, 247, 251, 0.18), rgba(255, 247, 251, 0.36)),
-    url("./assets/chat-bg.jpg") center / cover no-repeat;
-  opacity: 0.78;
-  transform: none;
-}
-
 body::after {
-  inset: 0;
-  top: 0;
-  bottom: 0;
-  height: auto;
-  z-index: -1;
-  background-image:
-    radial-gradient(circle, rgba(255, 143, 189, 0.38) 0 2px, transparent 2.6px),
-    radial-gradient(circle, rgba(255, 255, 255, 0.55) 0 2px, transparent 2.6px);
-  background-size: 76px 76px, 112px 112px;
-  background-position: 12px 18px, 42px 56px;
-  opacity: 0.42;
-  transform: none;
+  content: "" !important;
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: -1 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  background:
+    radial-gradient(circle at 15% 18%, rgba(255, 215, 232, 0.34), transparent 28%),
+    radial-gradient(circle at 86% 72%, rgba(255, 238, 247, 0.5), transparent 24%) !important;
+  opacity: 0.74 !important;
+  transform: none !important;
+  pointer-events: none !important;
 }
 
+body,
 .app-shell,
+.chat-screen,
+.chat-log,
 .page-layer {
-  background:
-    linear-gradient(rgba(255, 247, 251, 0.36), rgba(255, 247, 251, 0.5)),
-    url("./assets/chat-bg.jpg") center / cover no-repeat;
+  background-image:
+    linear-gradient(rgba(255, 246, 250, 0.12), rgba(255, 246, 250, 0.24)),
+    url("assets/chat-bg.jpg") !important;
+  background-size: cover !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
 }
 
 .topbar,
 .page-header,
-.memory-footer {
-  background: rgba(255, 248, 252, 0.78);
-  border-color: rgba(255, 160, 202, 0.54);
-  backdrop-filter: blur(14px);
+.memory-footer,
+.input-bar {
+  background: rgba(255, 250, 253, 0.7) !important;
+  border: var(--cute-border) !important;
+  box-shadow: 0 10px 26px rgba(225, 111, 164, 0.13) !important;
+  backdrop-filter: blur(14px) saturate(1.08) !important;
+}
+
+.topbar::after,
+.icon-text-button::before,
+.send-button::before,
+.small-button::before,
+.icon-text-button::after,
+.send-button::after,
+.small-button::after,
+.message-action::before {
+  content: "" !important;
+  display: none !important;
 }
 
 .empty-state,
@@ -1493,57 +1114,15 @@ body::after {
 .character-card,
 .relation-card,
 .memory-item,
-.npc-card {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(255, 242, 249, 0.66)) padding-box,
-    repeating-linear-gradient(90deg, rgba(255, 199, 225, 0.82) 0 9px, rgba(255, 255, 255, 0.82) 9px 18px) border-box;
-  border: 3px solid transparent;
-  box-shadow: 0 16px 30px rgba(226, 93, 151, 0.13);
-  backdrop-filter: blur(10px);
-}
-
-.ai-card::before,
-.ai-card::after {
-  content: "";
-  position: absolute;
-  top: -14px;
-  width: 18px;
-  height: 26px;
-  background: rgba(255, 255, 255, 0.88);
-  border: 2px solid rgba(255, 143, 189, 0.68);
-  border-bottom: 0;
-  border-radius: 18px 18px 5px 5px;
-  pointer-events: none;
-}
-
-.ai-card::before {
-  left: 24px;
-  right: auto;
-  transform: rotate(-18deg);
-}
-
-.ai-card::after {
-  left: 48px;
-  right: auto;
-  color: transparent;
-  transform: rotate(18deg);
-}
-
-.empty-state::before,
-.modal::before,
-.large-box::before,
-.settings-band::before,
-.sidebar-content::before {
-  content: "୨୧";
-  position: absolute;
-  left: 18px;
-  right: auto;
-  top: -14px;
-  height: auto;
-  background: transparent;
-  color: var(--pink-deep);
-  font-size: 18px;
-  opacity: 0.82;
+.npc-card,
+.input-bar,
+.sidebar-icons,
+.sidebar-icon {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.64), rgba(255, 242, 249, 0.48)) !important;
+  background-color: rgba(255, 255, 255, 0.54) !important;
+  border: var(--cute-border) !important;
+  box-shadow: var(--cute-shadow) !important;
+  backdrop-filter: blur(12px) saturate(1.08) !important;
 }
 
 .empty-state::after,
@@ -1555,447 +1134,211 @@ body::after {
 .relation-card::after,
 .memory-item::after,
 .npc-card::after {
-  content: "♡";
-  right: 14px;
-  top: 10px;
-  color: rgba(245, 111, 171, 0.32);
+  content: "" !important;
+  display: none !important;
 }
 
-.env-strip {
-  background:
-    linear-gradient(180deg, rgba(255, 247, 251, 0.82), rgba(255, 236, 245, 0.74)) padding-box,
-    repeating-linear-gradient(90deg, rgba(255, 207, 228, 0.9) 0 8px, rgba(255, 255, 255, 0.8) 8px 16px) border-box;
+.ai-card {
+  border-radius: 24px !important;
+}
+
+.ai-card::before,
+.ai-card::after {
+  content: "" !important;
+  display: block !important;
+  position: absolute !important;
+  top: -15px !important;
+  width: 17px !important;
+  height: 27px !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+  border: 2px solid rgba(231, 124, 174, 0.58) !important;
+  border-bottom: 0 !important;
+  border-radius: 18px 18px 6px 6px !important;
+  pointer-events: none !important;
+}
+
+.ai-card::before {
+  left: 22px !important;
+  right: auto !important;
+  transform: rotate(-15deg) !important;
+}
+
+.ai-card::after {
+  left: 45px !important;
+  right: auto !important;
+  transform: rotate(15deg) !important;
+}
+
+.env-strip,
+.env-strip span,
+.dialogue-speaker,
+.round-group h3,
+.memory-type,
+textarea,
+input,
+select,
+.input-bar textarea {
+  background-image: none !important;
+  background-color: rgba(255, 255, 255, 0.56) !important;
+  border-color: rgba(244, 166, 202, 0.54) !important;
 }
 
 .dialogue-box {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.66), rgba(255, 241, 248, 0.56)) padding-box,
-    repeating-linear-gradient(90deg, rgba(255, 208, 228, 0.78) 0 9px, rgba(255, 255, 255, 0.72) 9px 18px) border-box;
-  border: 3px solid transparent;
-  border-radius: 24px;
-  backdrop-filter: blur(8px);
+  position: relative;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 241, 248, 0.4)) !important;
+  background-color: rgba(255, 255, 255, 0.38) !important;
+  border: 2px solid rgba(244, 166, 202, 0.48) !important;
+  border-radius: 24px !important;
+  box-shadow: 0 12px 26px rgba(225, 111, 164, 0.1), inset 0 0 0 1px rgba(255, 255, 255, 0.42) !important;
+  backdrop-filter: blur(8px) saturate(1.1) !important;
 }
 
 .dialogue-box::before {
-  content: "୨୧";
-  left: 18px;
-  right: auto;
-  top: -14px;
-  bottom: auto;
-  height: auto;
-  background: transparent;
-  color: var(--pink-deep);
-  font-size: 16px;
+  content: "" !important;
+  position: absolute !important;
+  top: -10px !important;
+  left: 18px !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: 34px !important;
+  height: 18px !important;
+  border: 2px solid rgba(231, 124, 174, 0.5) !important;
+  border-bottom: 0 !important;
+  border-radius: 22px 22px 0 0 !important;
+  background: rgba(255, 255, 255, 0.56) !important;
+  pointer-events: none !important;
 }
 
 .dialogue-box::after {
-  content: "";
-  inset: 7px;
-  border: 1px dotted rgba(255, 143, 189, 0.5);
-  border-radius: 18px;
-  background: transparent;
+  content: "" !important;
+  position: absolute !important;
+  inset: 7px !important;
+  border: 1px dotted rgba(231, 124, 174, 0.34) !important;
+  border-radius: 18px !important;
+  background: transparent !important;
+  pointer-events: none !important;
 }
 
+.icon-text-button,
+.send-button,
+.small-button,
+.ghost-button,
+.danger-button,
+.message-action,
 .round-button,
+.sidebar-icon,
 .drawer-tab {
-  background: radial-gradient(circle at 35% 30%, #fff, #ffc1da 44%, #f56fab 100%);
-}
-
-.round-button::before,
-.round-button::after {
-  display: block;
-}
-
-@media (max-width: 540px) {
-  body::before,
-  body::after {
-    inset: 0;
-    height: auto;
-  }
-}
-
-/* Soft pink decorative skin */
-:root {
-  --bg: #fff3f8;
-  --surface: rgba(255, 255, 255, 0.9);
-  --surface-strong: #fff0f7;
-  --pink: #f56fab;
-  --pink-deep: #d94f8d;
-  --pink-soft: #ffd5e7;
-  --ink: #5b4352;
-  --muted: #947886;
-  --line: #f6bfd7;
-  --lace: #ffe8f1;
-  --shadow: 0 16px 34px rgba(226, 93, 151, 0.18);
-  --small-shadow: 0 8px 18px rgba(226, 93, 151, 0.2);
-}
-
-body {
-  background:
-    radial-gradient(circle at 12% 12%, rgba(255, 170, 205, 0.22) 0 9px, transparent 10px 100%),
-    radial-gradient(circle at 82% 18%, rgba(255, 220, 238, 0.8) 0 14px, transparent 15px 100%),
-    linear-gradient(135deg, rgba(244, 108, 166, 0.12) 25%, transparent 25%) 0 0 / 44px 44px,
-    linear-gradient(225deg, rgba(244, 108, 166, 0.1) 25%, transparent 25%) 0 0 / 44px 44px,
-    linear-gradient(180deg, #fff8fb 0%, #fff1f7 52%, #fff7fb 100%);
-  color: var(--ink);
-}
-
-body::before,
-body::after {
-  content: "";
-  position: fixed;
-  left: 0;
-  right: 0;
-  z-index: 1;
-  height: 16px;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 12px 0, transparent 13px, rgba(255, 255, 255, 0.72) 14px 20px, transparent 21px) 0 0 / 28px 16px repeat-x,
-    linear-gradient(90deg, transparent, rgba(245, 111, 171, 0.18), transparent);
-}
-
-body::before {
-  top: calc(54px + env(safe-area-inset-top));
-}
-
-body::after {
-  bottom: calc(82px + env(safe-area-inset-bottom));
-  transform: rotate(180deg);
-}
-
-.app-shell {
-  background:
-    radial-gradient(circle at 18% 38%, rgba(255, 187, 215, 0.24), transparent 28%),
-    radial-gradient(circle at 88% 82%, rgba(255, 210, 231, 0.34), transparent 24%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 244, 250, 0.34));
-}
-
-.topbar {
-  background: rgba(255, 244, 249, 0.86);
-  border-bottom: 2px solid rgba(246, 191, 215, 0.7);
-  box-shadow: 0 10px 24px rgba(226, 93, 151, 0.12);
-}
-
-.topbar::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -8px;
-  height: 8px;
-  background: radial-gradient(circle at 8px 0, rgba(255, 255, 255, 0.9) 0 7px, transparent 8px) 0 0 / 18px 8px repeat-x;
-  pointer-events: none;
+  font-family: var(--cute-font) !important;
+  font-weight: 900 !important;
+  letter-spacing: 0 !important;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.82) !important;
 }
 
 .icon-text-button,
 .send-button,
 .small-button {
-  position: relative;
-  background: linear-gradient(180deg, #ff8dbc, #ee5fa1);
-  border: 2px solid rgba(255, 214, 231, 0.9);
-  color: #fff;
-  box-shadow: 0 8px 0 rgba(210, 72, 136, 0.13), 0 12px 22px rgba(226, 93, 151, 0.22);
-}
-
-.icon-text-button::after,
-.send-button::after,
-.small-button::after {
-  content: "";
-  width: 6px;
-  height: 6px;
-  margin-left: 7px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.76);
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.16);
+  background-image: linear-gradient(180deg, rgba(255, 157, 199, 0.96), rgba(239, 91, 158, 0.96)) !important;
+  color: #fff !important;
+  border: 2px solid rgba(255, 255, 255, 0.78) !important;
+  border-radius: 999px !important;
 }
 
 .ghost-button,
-.message-action {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 244, 249, 0.94));
-  border: 2px dashed var(--pink-soft);
-  color: var(--pink-deep);
-  box-shadow: 0 7px 15px rgba(226, 93, 151, 0.12);
-}
-
+.message-action,
 .danger-button {
-  background: linear-gradient(180deg, #fff7fa, #ffe9ef);
-  border: 2px dashed #ffb9cd;
-  box-shadow: 0 7px 15px rgba(226, 93, 151, 0.12);
+  background-image: none !important;
+  background-color: rgba(255, 255, 255, 0.62) !important;
 }
 
-.round-button,
+.round-button {
+  background: rgba(255, 255, 255, 0.62) !important;
+  border: 2px solid rgba(231, 124, 174, 0.66) !important;
+}
+
+.round-button::before,
+.round-button::after,
+.drawer-tab::before,
+.drawer-tab::after {
+  content: "" !important;
+  display: block !important;
+  position: absolute !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+  border: 2px solid rgba(231, 124, 174, 0.58) !important;
+  border-bottom: 0 !important;
+  pointer-events: none !important;
+  font-size: 0 !important;
+  filter: none !important;
+}
+
+.round-button::before,
+.round-button::after {
+  top: -11px !important;
+  width: 12px !important;
+  height: 19px !important;
+  border-radius: 14px 14px 5px 5px !important;
+}
+
+.round-button::before {
+  left: 8px !important;
+  transform: rotate(-14deg) !important;
+}
+
+.round-button::after {
+  right: 8px !important;
+  transform: rotate(14deg) !important;
+}
+
 .drawer-tab {
-  background: radial-gradient(circle at 35% 30%, #fff, #ffb6d3 42%, #f56fab 100%);
-  border: 2px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 8px 18px rgba(226, 93, 151, 0.26);
+  background: rgba(255, 255, 255, 0.7) !important;
+  border: 2px solid rgba(231, 124, 174, 0.58) !important;
+  font-size: 0 !important;
 }
 
-.chat-log {
-  position: relative;
+.drawer-tab::before,
+.drawer-tab::after {
+  top: -13px !important;
+  width: 12px !important;
+  height: 23px !important;
+  border-radius: 14px 14px 5px 5px !important;
 }
 
-.empty-state,
-.ai-card,
-.player-bubble,
-.modal,
-.large-box,
-.settings-band,
-.sidebar-content,
-.character-card,
-.relation-card,
-.memory-item,
-.npc-card {
-  position: relative;
-  background:
-    linear-gradient(#fff, #fff) padding-box,
-    repeating-linear-gradient(90deg, #ffd6e8 0 10px, #fff4fa 10px 20px) border-box;
-  border: 3px solid transparent;
-  box-shadow: 0 16px 30px rgba(226, 93, 151, 0.14);
+.drawer-tab::before {
+  left: 6px !important;
+  transform: rotate(-14deg) !important;
 }
 
-.empty-state::before,
-.ai-card::before,
-.modal::before,
-.large-box::before,
-.settings-band::before,
-.sidebar-content::before {
-  content: "";
-  position: absolute;
-  left: 16px;
-  right: 16px;
-  top: -8px;
-  height: 14px;
-  background: radial-gradient(circle at 7px 7px, #fff 0 6px, transparent 7px) 0 0 / 18px 14px repeat-x;
-  opacity: 0.9;
-  pointer-events: none;
-}
-
-.empty-state::after,
-.ai-card::after,
-.modal::after,
-.large-box::after,
-.settings-band::after,
-.sidebar-content::after {
-  content: "♡";
-  position: absolute;
-  right: 14px;
-  top: 10px;
-  color: rgba(245, 111, 171, 0.34);
-  font-size: 22px;
-  line-height: 1;
-  pointer-events: none;
-}
-
-.player-bubble {
-  background:
-    linear-gradient(180deg, rgba(255, 242, 248, 0.98), rgba(255, 255, 255, 0.98)) padding-box,
-    repeating-linear-gradient(135deg, #ffd2e5 0 8px, #fff4fa 8px 16px) border-box;
-  border-radius: 24px 24px 8px 24px;
-}
-
-.ai-card {
-  border-radius: 24px;
-  padding: 18px 14px 14px;
-}
-
-.env-strip {
-  background:
-    linear-gradient(180deg, rgba(255, 247, 251, 0.98), rgba(255, 236, 245, 0.96)) padding-box,
-    repeating-linear-gradient(90deg, #ffcfe4 0 8px, #fff 8px 16px) border-box;
-  border: 2px solid transparent;
-  border-radius: 999px;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.8), 0 8px 18px rgba(226, 93, 151, 0.1);
-}
-
-.env-strip span {
-  border: 1px dashed rgba(245, 111, 171, 0.36);
-  background: rgba(255, 255, 255, 0.78);
-  color: var(--pink-deep);
-}
-
-.story-body p {
-  color: #6b5361;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.65);
-}
-
-.dialogue-box {
-  position: relative;
-  margin: 6px 0 20px;
-  padding: 18px 16px 16px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 246, 250, 0.97)) padding-box,
-    repeating-linear-gradient(90deg, #ffd0e4 0 9px, #fff 9px 18px) border-box;
-  border: 3px solid transparent;
-  border-radius: 24px;
-  box-shadow: 0 12px 26px rgba(226, 93, 151, 0.12);
-}
-
-.dialogue-box::before {
-  content: "";
-  position: absolute;
-  left: 14px;
-  right: 14px;
-  bottom: -8px;
-  height: 12px;
-  background: radial-gradient(circle at 6px 0, transparent 0 5px, rgba(255, 220, 235, 0.92) 6px 7px, transparent 8px) 0 0 / 16px 12px repeat-x;
-  pointer-events: none;
-}
-
-.dialogue-speaker {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: #fff0f7;
-  color: var(--pink-deep);
-  border: 1px dashed rgba(245, 111, 171, 0.42);
-}
-
-.dialogue-speaker::before {
-  content: "✧";
-}
-
-.button-row {
-  border-top: 2px dashed #f8d5e4;
-}
-
-.input-bar {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 244, 249, 0.96)) padding-box,
-    repeating-linear-gradient(90deg, #ffcde2 0 10px, #fff 10px 20px) border-box;
-  border: 3px solid transparent;
-  border-radius: 30px;
-  box-shadow: 0 0 0 5px rgba(255, 231, 241, 0.72), 0 16px 34px rgba(226, 93, 151, 0.18);
-}
-
-.input-bar textarea,
-textarea,
-input,
-select {
-  background: rgba(255, 255, 255, 0.82);
-  border: 2px solid #f5c5da;
-  border-radius: 22px;
-  box-shadow: inset 0 2px 8px rgba(226, 93, 151, 0.08);
-}
-
-.side-drawer {
-  filter: drop-shadow(0 10px 18px rgba(226, 93, 151, 0.2));
-}
-
-.sidebar-icons {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 240, 247, 0.92)) padding-box,
-    repeating-linear-gradient(180deg, #ffcfe4 0 10px, #fff 10px 20px) border-box;
-  border: 3px solid transparent;
-}
-
-.sidebar-icon {
-  background: linear-gradient(180deg, #fff, #fff0f7);
-  border: 2px solid #ffd3e6;
+.drawer-tab::after {
+  left: 20px !important;
+  right: auto !important;
+  transform: rotate(14deg) !important;
 }
 
 .sidebar-icon.active {
-  background: radial-gradient(circle at 35% 25%, #fff, #ff9bc5 40%, #f56fab 100%);
-  color: #fff;
-  box-shadow: 0 10px 20px rgba(226, 93, 151, 0.28);
-}
-
-.sidebar-content h2,
-.panel h2,
-.large-box h2,
-.settings-band h2,
-.modal h2,
-.page-header h1 {
-  color: var(--pink-deep);
-  text-shadow: 0 2px 0 rgba(255, 255, 255, 0.9);
-}
-
-.round-group h3,
-.memory-type {
-  background: #fff3f8;
-  border: 1px dashed #f4bfd6;
-  color: var(--pink-deep);
-}
-
-.page-layer {
-  background:
-    radial-gradient(circle at 15% 12%, rgba(255, 189, 216, 0.28), transparent 22%),
-    radial-gradient(circle at 90% 40%, rgba(255, 220, 235, 0.42), transparent 24%),
-    linear-gradient(180deg, #fff8fb, #fff1f7);
-}
-
-.page-header {
-  background: rgba(255, 243, 249, 0.9);
-  border-bottom: 2px solid rgba(246, 191, 215, 0.68);
-  box-shadow: 0 10px 24px rgba(226, 93, 151, 0.12);
-}
-
-.memory-footer {
-  background: rgba(255, 243, 249, 0.9);
-  border-top: 2px solid rgba(246, 191, 215, 0.68);
-  box-shadow: 0 -10px 24px rgba(226, 93, 151, 0.1);
-}
-
-.modal-backdrop {
-  background: rgba(105, 70, 91, 0.3);
-  backdrop-filter: blur(6px);
+  background: rgba(255, 176, 210, 0.68) !important;
+  color: #fff !important;
 }
 
 @media (max-width: 540px) {
-  body::before {
-    top: calc(48px + env(safe-area-inset-top));
+  body::before,
+  body::after,
+  .app-shell,
+  .chat-screen,
+  .chat-log,
+  .page-layer {
+    background-position: center center !important;
+    background-size: cover !important;
   }
 
-  body::after {
-    bottom: calc(82px + env(safe-area-inset-bottom));
-  }
-
-  .ai-card {
-    padding: 16px 10px 12px;
-    border-radius: 22px;
-  }
-
-  .env-strip {
-    border-radius: 20px;
-  }
-
-  .input-bar {
-    border-radius: 26px;
-  }
-
-  .empty-state::before,
-  .ai-card::before,
-  .modal::before,
-  .large-box::before,
-  .settings-band::before,
-  .sidebar-content::before {
-    left: 12px;
-    right: 12px;
+  .icon-text-button,
+  .send-button,
+  .ghost-button,
+  .danger-button,
+  .message-action {
+    font-size: 14px !important;
+    font-weight: 900 !important;
   }
 }
 
-.sidebar-content {
-  position: absolute !important;
-  left: 78px !important;
-  top: 50% !important;
-  transform: translate(-12px, -50%) scale(0.98) !important;
-  max-height: min(62vh, calc(100vh - 210px - env(safe-area-inset-top) - env(safe-area-inset-bottom))) !important;
-  max-height: min(62dvh, calc(100dvh - 210px - env(safe-area-inset-top) - env(safe-area-inset-bottom))) !important;
-}
-
-.side-drawer.panel-open .sidebar-content {
-  transform: translate(0, -50%) scale(1) !important;
-}
-
-@media (max-width: 540px) {
-  .sidebar-content {
-    left: 68px !important;
-    top: 50% !important;
-    max-height: min(58vh, calc(100vh - 230px - env(safe-area-inset-top) - env(safe-area-inset-bottom))) !important;
-    max-height: min(58dvh, calc(100dvh - 230px - env(safe-area-inset-top) - env(safe-area-inset-bottom))) !important;
-  }
-}
 
 </style>
   </head>
@@ -2788,7 +2131,7 @@ async function generateWithApi({ source, text, previous, variant, eventId, avoid
     })
   }, getApiTimeout());
 
-  if (!response.ok) throw new Error(`API HTTP ${response.status}`);
+  if (!response.ok) await throwApiHttpError(response);
   const contentType = response.headers.get("content-type") || "";
   let content = "";
   if (response.body && /text\/event-stream|stream/i.test(contentType)) {
@@ -2833,7 +2176,7 @@ async function generateMergedMemoryWithApi(selected) {
       stream: false
     })
   }, getApiTimeout());
-  if (!response.ok) throw new Error(`API HTTP ${response.status}`);
+  if (!response.ok) await throwApiHttpError(response);
   const data = await response.json();
   const raw = data.choices?.[0]?.message?.content || data.output_text || "";
   const clean = String(raw || "")
@@ -3005,11 +2348,30 @@ async function fetchWithTimeout(url, options = {}, timeout = 12000) {
   }
 }
 
+async function throwApiHttpError(response) {
+  let detail = "";
+  try {
+    const text = await response.text();
+    if (text) {
+      try {
+        const json = JSON.parse(text);
+        detail = json.error?.message || json.message || json.code || text.slice(0, 240);
+      } catch {
+        detail = text.slice(0, 240);
+      }
+    }
+  } catch {
+    detail = "";
+  }
+  throw new Error(`HTTP ${response.status}${detail ? `：${detail}` : ""}`);
+}
+
 function formatGenerationError(error) {
   if (error?.name === "AbortError") {
-    return "生成失败：API 请求超时。请检查网络、接口地址，或模型响应速度。";
+    return "生成失败：API 请求超时。千问有时首包较慢，请稍后重试；如果一直超时，建议换 qwen-plus/qwen-turbo，或用 http://127.0.0.1 本地预览地址打开页面再试。";
   }
   const message = String(error?.message || error || "未知错误");
+  if (/400|Bad Request/i.test(message)) return `生成失败：请求参数不被接口接受。请检查模型名是否正确，当前模型可以先试 qwen-plus。${message}`;
   if (/401|Unauthorized/i.test(message)) return "生成失败：密钥无效或没有权限，请检查千问 API Key。";
   if (/403|Forbidden/i.test(message)) return "生成失败：当前密钥没有访问该模型或工作空间的权限。";
   if (/404|Not Found/i.test(message)) return "生成失败：API 地址或模型名称不存在，请确认千问兼容地址和模型 ID。";
@@ -3025,17 +2387,18 @@ function formatGenerationError(error) {
 function getApiTimeout() {
   const debugTimeout = new URLSearchParams(window.location.search).get("apiTimeout");
   const parsed = Number(debugTimeout);
-  return Number.isFinite(parsed) && parsed >= 500 ? parsed : 12000;
+  return Number.isFinite(parsed) && parsed >= 500 ? parsed : 120000;
 }
 
 function getQuickApiTimeout() {
   const debugTimeout = new URLSearchParams(window.location.search).get("quickApiTimeout");
   const parsed = Number(debugTimeout);
-  return Number.isFinite(parsed) && parsed >= 500 ? parsed : 6500;
+  return Number.isFinite(parsed) && parsed >= 500 ? parsed : 30000;
 }
 
 const QWEN_MODEL_CANDIDATES = [
   "qwen-plus",
+  "qwen3.5-flash",
   "qwen3.5-plus",
   "qwen3-plus",
   "qwen-turbo",
@@ -3119,7 +2482,7 @@ async function fetchAvailableModels() {
     const response = await fetchWithTimeout(getModelsUrl(state.settings.apiUrl), {
       headers: { Authorization: `Bearer ${state.settings.apiKey}` }
     }, getQuickApiTimeout());
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.ok) await throwApiHttpError(response);
     const data = await response.json();
     const models = (Array.isArray(data.data) ? data.data : [])
       .map((item) => item.id || item.name)
@@ -3162,24 +2525,29 @@ async function testApiConnection() {
         messages: [
           {
             role: "system",
-            content: "返回严格 JSON，不要 Markdown。结构必须是 {\"env\":{\"time\":\"傍晚\",\"place\":\"测试地点\",\"weather\":\"微风\"},\"blocks\":[{\"type\":\"paragraph\",\"text\":\"一句环境描写。\"}]}"
+            content: "你是连通性测试助手。请只回复一个最短 JSON：{\"ok\":true}"
           },
-          { role: "user", content: "剧情格式连接测试" }
+          { role: "user", content: "ping" }
         ],
-        max_tokens: 180,
+        max_tokens: 32,
         temperature: 0,
         stream: false
       })
     }, getQuickApiTimeout());
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.ok) await throwApiHttpError(response);
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || data.output_text || "";
-    const parsed = parseApiJsonContent(content);
-    if (!parsed?.env || !Array.isArray(parsed?.blocks)) {
-      throw new Error("模型没有返回剧情 JSON 结构");
+    try {
+      const parsed = parseApiJsonContent(content);
+      if (!parsed?.env || !Array.isArray(parsed?.blocks)) {
+        throw new Error("模型没有返回剧情 JSON 结构");
+      }
+      saveState();
+      showApiStatus("连接成功，剧情格式也可用。", "ok");
+    } catch (formatError) {
+      saveState();
+      showApiStatus("API 已接通，但模型没有按剧情 JSON 格式返回。可以继续使用；若生成失败，请换 qwen-plus 或重新点检验。", "ok");
     }
-    saveState();
-    showApiStatus("连接成功，剧情格式也可用。", "ok");
   } catch (error) {
     showApiStatus(`检验失败：${formatGenerationError(error)}`, "error");
   }

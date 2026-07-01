@@ -1,0 +1,4234 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="文字冒险" />
+    <meta name="theme-color" content="#fffafd" />
+    <title>文字冒险</title>
+    <!-- mobile-single-file-build: 2026-06-30 -->
+    <style>
+:root {
+  --bg: #fff7fb;
+  --surface: rgba(255, 255, 255, 0.88);
+  --surface-strong: rgba(255, 242, 248, 0.9);
+  --pink: #ff6fae;
+  --pink-deep: #e94f94;
+  --pink-soft: #ffd4e6;
+  --pink-milk: #fff0f7;
+  --lace: rgba(255, 255, 255, 0.78);
+  --ribbon: #ff8fbd;
+  --ink: #332731;
+  --muted: #766875;
+  --line: #f4bfd6;
+  --shadow: 0 16px 38px rgba(232, 88, 151, 0.18);
+  --small-shadow: 0 9px 20px rgba(232, 88, 151, 0.18);
+  --lace-border: 2px dashed rgba(255, 143, 189, 0.5);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  width: 100%;
+  overscroll-behavior: none;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at 10% 16%, rgba(255, 214, 232, 0.58), transparent 28%),
+    radial-gradient(circle at 90% 12%, rgba(255, 236, 246, 0.74), transparent 30%),
+    var(--bg);
+  color: var(--ink);
+  font-family: "Arial Rounded MT Bold", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 16px;
+  font-style: normal;
+  overflow: hidden;
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background:
+    linear-gradient(rgba(255, 247, 251, 0.2), rgba(255, 247, 251, 0.38)),
+    url("./assets/chat-bg.jpg") center / cover no-repeat;
+  opacity: 0.72;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, rgba(255, 143, 189, 0.42) 0 2px, transparent 2.5px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.62) 0 2px, transparent 2.5px);
+  background-size: 76px 76px, 112px 112px;
+  background-position: 12px 18px, 42px 56px;
+  opacity: 0.42;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  border: 0;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+button:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--small-shadow);
+}
+
+textarea,
+input,
+select {
+  width: 100%;
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--ink);
+  outline: none;
+  padding: 12px 14px;
+}
+
+textarea:focus,
+input:focus,
+select:focus {
+  border-color: var(--pink);
+  box-shadow: 0 0 0 4px rgba(255, 111, 174, 0.14);
+}
+
+textarea {
+  resize: vertical;
+  line-height: 1.75;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  background:
+    linear-gradient(90deg, rgba(255, 247, 251, 0.48), rgba(255, 255, 255, 0.18), rgba(255, 247, 251, 0.48));
+}
+
+.chat-screen {
+  width: 100%;
+  min-width: 0;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  padding: calc(10px + env(safe-area-inset-top)) 14px 10px 62px;
+  background: rgba(255, 248, 252, 0.82);
+  border-bottom: var(--lace-border);
+  backdrop-filter: blur(14px);
+}
+
+.topbar::before {
+  content: "♡ ୨୧";
+  position: absolute;
+  left: 76px;
+  color: rgba(233, 79, 148, 0.72);
+  font-size: 18px;
+  pointer-events: none;
+}
+
+.brand {
+  display: none;
+}
+
+.topbar-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.icon-text-button,
+.send-button,
+.small-button {
+  position: relative;
+  background: linear-gradient(180deg, #ff9bc6 0%, var(--pink) 100%);
+  color: #fff;
+  border-radius: 999px;
+  padding: 10px 18px;
+  box-shadow: 0 6px 12px rgba(255, 111, 174, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.66);
+  overflow: visible;
+}
+
+.icon-text-button::before,
+.send-button::before,
+.small-button::before {
+  content: "୨୧";
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #fff;
+  font-size: 13px;
+  text-shadow: 0 1px 2px rgba(232, 88, 151, 0.42);
+  pointer-events: none;
+}
+
+.ghost-button {
+  background: rgba(255, 255, 255, 0.84);
+  color: var(--pink-deep);
+  border: var(--lace-border);
+  border-radius: 999px;
+  padding: 9px 16px;
+}
+
+.danger-button {
+  background: #fff0f2;
+  color: #c81f4a;
+  border: 2px solid #ffbac8;
+  border-radius: 999px;
+  padding: 10px 18px;
+}
+
+.round-button {
+  position: relative;
+  flex: 0 0 46px;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--pink-deep);
+  border: 2px solid var(--pink);
+  font-size: 26px;
+  line-height: 1;
+}
+
+.round-button::before,
+.round-button::after {
+  content: "";
+  position: absolute;
+  top: -9px;
+  width: 12px;
+  height: 18px;
+  background: #fff;
+  border: 2px solid var(--pink-soft);
+  border-bottom: 0;
+  border-radius: 12px 12px 4px 4px;
+}
+
+.round-button::before {
+  left: 8px;
+  transform: rotate(-16deg);
+}
+
+.round-button::after {
+  right: 8px;
+  transform: rotate(16deg);
+}
+
+.chat-log {
+  flex: 1;
+  width: calc(100% - 12px);
+  max-width: 920px;
+  margin: 0 auto;
+  padding: calc(74px + env(safe-area-inset-top)) 0 calc(108px + env(safe-area-inset-bottom));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-color: rgba(255, 143, 189, 0.58) rgba(255, 255, 255, 0.22);
+}
+
+.empty-state {
+  position: relative;
+  margin: 8vh auto 0;
+  max-width: 680px;
+  padding: 24px;
+  border: var(--lace-border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: var(--shadow);
+  line-height: 1.8;
+  color: var(--muted);
+  backdrop-filter: blur(10px);
+}
+
+.empty-state::before {
+  content: "♡";
+  position: absolute;
+  right: 16px;
+  top: -16px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--ribbon);
+  border-radius: 50%;
+  box-shadow: var(--small-shadow);
+}
+
+.message {
+  margin: 0 0 18px;
+}
+
+.message.player {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.player-bubble {
+  position: relative;
+  max-width: min(78%, 680px);
+  background: rgba(255, 241, 248, 0.84);
+  border: var(--lace-border);
+  border-radius: 18px 18px 6px 18px;
+  padding: 14px 16px;
+  box-shadow: 0 8px 22px rgba(255, 111, 174, 0.12);
+  backdrop-filter: blur(9px);
+}
+
+.player-bubble::before {
+  content: "୨୧";
+  position: absolute;
+  top: -13px;
+  right: 18px;
+  color: var(--pink-deep);
+  font-size: 15px;
+  opacity: 0.82;
+}
+
+.player-text {
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ai-card {
+  position: relative;
+  max-width: 100%;
+  background: rgba(255, 255, 255, 0.72);
+  border: var(--lace-border);
+  border-radius: 22px;
+  padding: 14px;
+  box-shadow: 0 10px 24px rgba(131, 73, 105, 0.09);
+  backdrop-filter: blur(10px);
+  overflow: visible;
+}
+
+.ai-card::before,
+.ai-card::after {
+  content: "";
+  position: absolute;
+  top: -12px;
+  width: 18px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.86);
+  border: 2px solid rgba(255, 143, 189, 0.6);
+  border-bottom: 0;
+  border-radius: 18px 18px 5px 5px;
+  pointer-events: none;
+}
+
+.ai-card::before {
+  left: 22px;
+  transform: rotate(-18deg);
+}
+
+.ai-card::after {
+  left: 44px;
+  transform: rotate(18deg);
+}
+
+.env-strip {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  background: linear-gradient(90deg, rgba(255, 240, 247, 0.92), rgba(255, 255, 255, 0.78));
+  border: 2px solid rgba(255, 190, 219, 0.72);
+  border-radius: 16px;
+  color: var(--pink-deep);
+}
+
+.env-strip::after {
+  content: "✧";
+  margin-left: auto;
+  color: rgba(233, 79, 148, 0.58);
+}
+
+.env-strip span {
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 999px;
+  border: 1px solid #ffe1ed;
+}
+
+.story-body {
+  padding: 16px 4px 6px;
+}
+
+.story-body p {
+  margin: 0 0 18px;
+  line-height: 1.9;
+  overflow-wrap: anywhere;
+}
+
+.typing-indicator {
+  color: var(--pink-deep);
+}
+
+.typing-indicator::after {
+  content: "...";
+  display: inline-block;
+  width: 1.8em;
+  text-align: left;
+  animation: typingPulse 1.2s ease-in-out infinite;
+}
+
+.error-text {
+  color: #c81f4a;
+  background: #fff4f6;
+  border: 1px dashed #ffb9cd;
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+
+@keyframes typingPulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+.dialogue-box {
+  position: relative;
+  margin: 2px 0 18px;
+  padding: 16px 16px 14px;
+  border: var(--lace-border);
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(255, 239, 247, 0.68));
+  box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.34), 0 8px 18px rgba(232, 88, 151, 0.1);
+  backdrop-filter: blur(8px);
+}
+
+.dialogue-box::before {
+  content: "୨୧";
+  position: absolute;
+  top: -14px;
+  left: 16px;
+  color: var(--pink-deep);
+  font-size: 15px;
+}
+
+.dialogue-box::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border: 1px dotted rgba(255, 143, 189, 0.46);
+  border-radius: 16px;
+  pointer-events: none;
+}
+
+.dialogue-speaker {
+  display: block;
+  color: var(--pink-deep);
+  margin-bottom: 8px;
+}
+
+.dialogue-text {
+  line-height: 1.8;
+}
+
+.button-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px dashed #f6bdd5;
+}
+
+.message-action {
+  position: relative;
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--pink-deep);
+  border: 2px solid rgba(255, 207, 228, 0.9);
+  border-radius: 999px;
+  padding: 7px 13px;
+}
+
+.message-action::before {
+  content: "♡";
+  margin-right: 4px;
+  color: var(--ribbon);
+}
+
+.input-bar {
+  position: fixed;
+  z-index: 30;
+  left: 50%;
+  bottom: max(10px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: calc(100% - 12px);
+  max-width: 940px;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 12px;
+  border: var(--lace-border);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
+}
+
+.input-bar textarea {
+  min-height: 46px;
+  max-height: 160px;
+  resize: none;
+  border-radius: 16px;
+  line-height: 1.55;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.side-drawer {
+  position: fixed;
+  z-index: 60;
+  left: 0;
+  top: 50%;
+  width: 104px;
+  height: 174px;
+  transform: translate(calc(-100% + 34px + var(--drag-x, 0px)), -50%);
+  transition: transform 220ms ease;
+  overflow: visible;
+  touch-action: pan-y;
+}
+
+.side-drawer.open {
+  transform: translate(0, -50%);
+}
+
+.side-drawer.dragging {
+  transition: none;
+}
+
+.drawer-tab {
+  position: absolute;
+  top: 50%;
+  right: -18px;
+  width: 36px;
+  height: 86px;
+  transform: translateY(-50%);
+  border-radius: 0 18px 18px 0;
+  background: linear-gradient(180deg, #ff9bc6, var(--pink));
+  color: #fff;
+  box-shadow: var(--small-shadow);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: 0;
+  touch-action: none;
+}
+
+.drawer-tab::after {
+  content: "🐰";
+  position: absolute;
+  right: -5px;
+  top: -16px;
+  font-size: 18px;
+  filter: drop-shadow(0 2px 3px rgba(232, 88, 151, 0.28));
+  pointer-events: none;
+}
+
+.drawer-tab::before {
+  content: "";
+  width: 7px;
+  height: 38px;
+  border-left: 3px solid rgba(255, 255, 255, 0.86);
+  border-right: 3px solid rgba(255, 255, 255, 0.86);
+  border-radius: 999px;
+}
+
+.sidebar-icons {
+  width: 72px;
+  min-height: 174px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 12px;
+  padding: 12px 10px 12px 8px;
+  border: var(--lace-border);
+  border-left: 0;
+  border-radius: 0 24px 24px 0;
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 14px 0 34px rgba(232, 88, 151, 0.15);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-10px) scale(0.96);
+  transition: opacity 180ms ease, transform 180ms ease;
+  backdrop-filter: blur(12px);
+}
+
+.side-drawer.open .sidebar-icons {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0) scale(1);
+}
+
+.sidebar-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--pink-deep);
+  border: 2px solid var(--pink-soft);
+  box-shadow: 0 8px 18px rgba(232, 88, 151, 0.15);
+}
+
+.sidebar-icon.active {
+  background: linear-gradient(180deg, #ff9bc6, var(--pink));
+  color: #fff;
+  border-color: var(--pink);
+}
+
+.sidebar-icon svg {
+  width: 24px;
+  height: 24px;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  fill: none;
+}
+
+.sidebar-content {
+  position: absolute;
+  left: 78px;
+  top: 50%;
+  width: min(76vw, 330px);
+  max-height: min(62vh, calc(100vh - 210px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+  max-height: min(62dvh, calc(100dvh - 210px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.86);
+  border: var(--lace-border);
+  border-radius: 22px;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-12px, -50%) scale(0.98);
+  transition: opacity 180ms ease, transform 180ms ease;
+  backdrop-filter: blur(12px);
+}
+
+.sidebar-content::before {
+  content: "୨୧";
+  position: sticky;
+  top: 0;
+  float: right;
+  color: var(--pink-deep);
+  opacity: 0.78;
+  pointer-events: none;
+}
+
+.side-drawer.panel-open .sidebar-content {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(0, -50%) scale(1);
+}
+
+.sidebar-content h2 {
+  margin: 0 0 12px;
+  color: var(--pink-deep);
+  font-size: 18px;
+}
+
+.panel {
+  margin-bottom: 16px;
+}
+
+.round-group {
+  margin-bottom: 14px;
+}
+
+.round-group h3 {
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  color: var(--muted);
+  font-size: 13px;
+  background: rgba(255, 245, 250, 0.74);
+  border: 1px solid #ffe1ed;
+  border-radius: 999px;
+}
+
+.panel h2,
+.large-box h2,
+.settings-band h2,
+.modal h2,
+.page-header h1 {
+  margin: 0 0 12px;
+  color: var(--pink-deep);
+  font-size: 22px;
+}
+
+.character-card,
+.relation-card,
+.memory-item,
+.npc-card {
+  position: relative;
+  padding: 13px;
+  margin-bottom: 10px;
+  background: rgba(255, 250, 253, 0.78);
+  border: var(--lace-border);
+  border-radius: 18px;
+  line-height: 1.7;
+  box-shadow: 0 8px 18px rgba(232, 88, 151, 0.08);
+  backdrop-filter: blur(8px);
+}
+
+.character-card::after,
+.relation-card::after,
+.memory-item::after,
+.npc-card::after {
+  content: "♡";
+  position: absolute;
+  right: 12px;
+  top: 8px;
+  color: rgba(233, 79, 148, 0.34);
+  pointer-events: none;
+}
+
+.character-card div,
+.relation-card div {
+  margin-bottom: 5px;
+}
+
+.modal-backdrop,
+.page-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(255, 240, 248, 0.38);
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.modal {
+  position: relative;
+  width: min(620px, 100%);
+  background: rgba(255, 255, 255, 0.9);
+  border: var(--lace-border);
+  border-radius: 24px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
+}
+
+.modal::before {
+  content: "୨୧";
+  position: absolute;
+  top: -16px;
+  left: 24px;
+  color: var(--pink-deep);
+  font-size: 18px;
+  pointer-events: none;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.confirm-modal p {
+  line-height: 1.8;
+  color: var(--muted);
+}
+
+.page-layer {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  background:
+    linear-gradient(rgba(255, 247, 251, 0.66), rgba(255, 247, 251, 0.72)),
+    url("./assets/chat-bg.jpg") center / cover no-repeat;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.page-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  background: rgba(255, 248, 252, 0.84);
+  border-bottom: var(--lace-border);
+  backdrop-filter: blur(14px);
+}
+
+.page-header h1 {
+  text-align: center;
+  margin: 0;
+}
+
+.home-grid {
+  width: calc(100% - 28px);
+  max-width: 1120px;
+  margin: 22px auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.large-box,
+.settings-band {
+  position: relative;
+  background: rgba(255, 255, 255, 0.82);
+  border: var(--lace-border);
+  border-radius: 24px;
+  padding: 18px;
+  box-shadow: 0 10px 24px rgba(255, 111, 174, 0.09);
+  backdrop-filter: blur(12px);
+}
+
+.large-box::before,
+.settings-band::before {
+  content: "୨୧";
+  position: absolute;
+  top: -14px;
+  left: 18px;
+  color: var(--pink-deep);
+  opacity: 0.78;
+  pointer-events: none;
+}
+
+.sub-box {
+  margin-bottom: 16px;
+}
+
+.section-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.section-title-row h2 {
+  margin-bottom: 0;
+}
+
+.sub-box h3,
+.npc-editor h3 {
+  margin: 0 0 10px;
+  color: var(--ink);
+  font-size: 18px;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.npc-editor-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.npc-card {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  gap: 8px;
+}
+
+.npc-card textarea {
+  grid-column: 1 / -1;
+}
+
+.settings-band {
+  width: calc(100% - 28px);
+  max-width: 1120px;
+  margin: 0 auto 26px;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.settings-grid label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+}
+
+.api-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.api-status {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  color: var(--muted);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px dashed rgba(255, 143, 189, 0.36);
+}
+
+.api-status[data-tone="ok"] {
+  color: #2d8a55;
+  border: 1px dashed rgba(45, 138, 85, 0.35);
+}
+
+.api-status[data-tone="error"] {
+  color: #c81f4a;
+  border: 1px dashed rgba(200, 31, 74, 0.35);
+}
+
+.api-hint {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.archive-note {
+  margin: 14px 0;
+  color: var(--muted);
+}
+
+.memory-list {
+  width: calc(100% - 28px);
+  max-width: 860px;
+  margin: 20px auto 96px;
+}
+
+.memory-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.memory-item input {
+  width: 18px;
+  height: 18px;
+  margin-top: 6px;
+  accent-color: var(--pink);
+}
+
+.memory-type {
+  color: var(--pink-deep);
+  margin-bottom: 5px;
+}
+
+.memory-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(255, 250, 253, 0.84);
+  border-top: var(--lace-border);
+  backdrop-filter: blur(12px);
+}
+
+@media (max-width: 820px) {
+  .home-grid,
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    padding-left: 58px;
+  }
+
+  .player-bubble {
+    max-width: 92%;
+  }
+
+  .npc-card {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sidebar-content {
+  position: absolute !important;
+  left: 78px !important;
+  top: 50% !important;
+  transform: translate(-12px, -50%) scale(0.98) !important;
+  max-height: min(62vh, calc(100vh - 210px - env(safe-area-inset-top) - env(safe-area-inset-bottom))) !important;
+  max-height: min(62dvh, calc(100dvh - 210px - env(safe-area-inset-top) - env(safe-area-inset-bottom))) !important;
+}
+
+.side-drawer.panel-open .sidebar-content {
+  transform: translate(0, -50%) scale(1) !important;
+}
+
+@media (max-width: 540px) {
+  .sidebar-content {
+    left: 68px !important;
+    top: 50% !important;
+    max-height: min(58vh, calc(100vh - 230px - env(safe-area-inset-top) - env(safe-area-inset-bottom))) !important;
+    max-height: min(58dvh, calc(100dvh - 230px - env(safe-area-inset-top) - env(safe-area-inset-bottom))) !important;
+  }
+}
+
+/* Final override placed at EOF so no older skin can cover it. */
+body {
+  background:
+    linear-gradient(rgba(255, 247, 251, 0.14), rgba(255, 247, 251, 0.3)),
+    url("./assets/chat-bg.jpg") center / cover no-repeat fixed !important;
+}
+
+body::before {
+  inset: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  height: auto !important;
+  z-index: -2 !important;
+  background:
+    linear-gradient(rgba(255, 247, 251, 0.08), rgba(255, 247, 251, 0.22)),
+    url("./assets/chat-bg.jpg") center / cover no-repeat !important;
+  opacity: 0.82 !important;
+  transform: none !important;
+}
+
+body::after {
+  inset: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  height: auto !important;
+  z-index: -1 !important;
+  background-image:
+    radial-gradient(circle, rgba(255, 143, 189, 0.36) 0 2px, transparent 2.6px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.52) 0 2px, transparent 2.6px) !important;
+  background-size: 76px 76px, 112px 112px !important;
+  background-position: 12px 18px, 42px 56px !important;
+  opacity: 0.38 !important;
+  transform: none !important;
+}
+
+.app-shell,
+.page-layer {
+  background:
+    linear-gradient(rgba(255, 247, 251, 0.34), rgba(255, 247, 251, 0.48)),
+    url("./assets/chat-bg.jpg") center / cover no-repeat !important;
+}
+
+.topbar,
+.page-header,
+.memory-footer {
+  background: rgba(255, 248, 252, 0.76) !important;
+  border-color: rgba(255, 160, 202, 0.54) !important;
+  backdrop-filter: blur(14px);
+}
+
+.empty-state,
+.ai-card,
+.player-bubble,
+.modal,
+.large-box,
+.settings-band,
+.sidebar-content,
+.character-card,
+.relation-card,
+.memory-item,
+.npc-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 242, 249, 0.62)) padding-box,
+    repeating-linear-gradient(90deg, rgba(255, 199, 225, 0.8) 0 9px, rgba(255, 255, 255, 0.8) 9px 18px) border-box !important;
+  border: 3px solid transparent !important;
+  box-shadow: 0 16px 30px rgba(226, 93, 151, 0.13) !important;
+  backdrop-filter: blur(10px);
+}
+
+.dialogue-box {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.64), rgba(255, 241, 248, 0.54)) padding-box,
+    repeating-linear-gradient(90deg, rgba(255, 208, 228, 0.76) 0 9px, rgba(255, 255, 255, 0.7) 9px 18px) border-box !important;
+  border: 3px solid transparent !important;
+  border-radius: 24px !important;
+  backdrop-filter: blur(8px);
+}
+
+.dialogue-box::before {
+  content: "୨୧" !important;
+  left: 18px !important;
+  right: auto !important;
+  top: -14px !important;
+  bottom: auto !important;
+  height: auto !important;
+  background: transparent !important;
+  color: var(--pink-deep) !important;
+  font-size: 16px !important;
+}
+
+.dialogue-box::after {
+  content: "" !important;
+  inset: 7px !important;
+  border: 1px dotted rgba(255, 143, 189, 0.5) !important;
+  border-radius: 18px !important;
+  background: transparent !important;
+}
+
+.ai-card::before,
+.ai-card::after {
+  content: "" !important;
+  position: absolute !important;
+  top: -14px !important;
+  width: 18px !important;
+  height: 26px !important;
+  background: rgba(255, 255, 255, 0.88) !important;
+  border: 2px solid rgba(255, 143, 189, 0.68) !important;
+  border-bottom: 0 !important;
+  border-radius: 18px 18px 5px 5px !important;
+  pointer-events: none !important;
+}
+
+.ai-card::before {
+  left: 24px !important;
+  right: auto !important;
+  transform: rotate(-18deg) !important;
+}
+
+.ai-card::after {
+  left: 48px !important;
+  right: auto !important;
+  transform: rotate(18deg) !important;
+}
+
+.empty-state::before,
+.modal::before,
+.large-box::before,
+.settings-band::before,
+.sidebar-content::before {
+  content: "୨୧" !important;
+  position: absolute !important;
+  left: 18px !important;
+  right: auto !important;
+  top: -14px !important;
+  height: auto !important;
+  background: transparent !important;
+  color: var(--pink-deep) !important;
+  font-size: 18px !important;
+  opacity: 0.82 !important;
+}
+
+.env-strip {
+  background:
+    linear-gradient(180deg, rgba(255, 247, 251, 0.82), rgba(255, 236, 245, 0.74)) padding-box,
+    repeating-linear-gradient(90deg, rgba(255, 207, 228, 0.9) 0 8px, rgba(255, 255, 255, 0.8) 8px 16px) border-box !important;
+}
+
+@media (max-width: 540px) {
+  body {
+    font-size: 15px;
+  }
+
+  .topbar {
+    padding: calc(7px + env(safe-area-inset-top)) 8px 7px 54px;
+  }
+
+  .topbar-actions {
+    width: 100%;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  .icon-text-button,
+  .send-button,
+  .ghost-button,
+  .danger-button {
+    padding: 7px 10px;
+    min-height: 36px;
+    font-size: 14px;
+  }
+
+  .input-bar {
+    bottom: max(8px, env(safe-area-inset-bottom));
+    width: calc(100% - 12px);
+    gap: 7px;
+    padding: 8px;
+    border-radius: 18px;
+  }
+
+  .chat-log {
+    width: calc(100% - 10px);
+    padding-top: calc(58px + env(safe-area-inset-top));
+    padding-bottom: calc(104px + env(safe-area-inset-bottom));
+  }
+
+  .empty-state {
+    margin-top: 18px;
+    padding: 16px;
+    border-radius: 16px;
+  }
+
+  .round-button {
+    flex-basis: 40px;
+    width: 40px;
+    height: 40px;
+    font-size: 22px;
+  }
+
+  .input-bar textarea {
+    min-height: 40px;
+    max-height: 118px;
+    padding: 9px 11px;
+    font-size: 15px;
+  }
+
+  .input-bar .send-button {
+    flex: 0 0 auto;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .player-bubble {
+    max-width: 96%;
+    padding: 12px;
+  }
+
+  .ai-card {
+    padding: 10px;
+    border-radius: 16px;
+  }
+
+  .env-strip {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 8px;
+    font-size: 14px;
+  }
+
+  .story-body {
+    padding: 12px 2px 2px;
+  }
+
+  .story-body p {
+    margin-bottom: 16px;
+    line-height: 1.82;
+  }
+
+  .dialogue-box {
+    padding: 11px 12px;
+    margin-bottom: 16px;
+  }
+
+  .button-row {
+    gap: 7px;
+  }
+
+  .message-action {
+    min-height: 34px;
+    padding: 6px 11px;
+  }
+
+  .side-drawer {
+    width: 96px;
+    height: 160px;
+    transform: translate(calc(-100% + 30px + var(--drag-x, 0px)), -50%);
+  }
+
+  .side-drawer.open {
+    transform: translate(0, -50%);
+  }
+
+  .drawer-tab {
+    right: -15px;
+    width: 30px;
+    height: 74px;
+    border-radius: 0 14px 14px 0;
+  }
+
+  .sidebar-icons {
+    width: 66px;
+    min-height: 160px;
+    padding: 10px 8px 10px 7px;
+    border-radius: 0 20px 20px 0;
+  }
+
+  .sidebar-icon {
+    width: 42px;
+    height: 42px;
+  }
+
+  .sidebar-content {
+    left: 68px;
+    top: 50%;
+    width: min(78vw, 300px);
+    max-height: min(58vh, calc(100vh - 230px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+    max-height: min(58dvh, calc(100dvh - 230px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+    padding: 10px;
+    border-radius: 18px;
+  }
+
+  .panel h2,
+  .large-box h2,
+  .settings-band h2,
+  .modal h2,
+  .page-header h1 {
+    font-size: 19px;
+  }
+
+  .character-card,
+  .relation-card,
+  .memory-item,
+  .npc-card {
+    padding: 11px;
+    border-radius: 12px;
+  }
+
+  .modal-backdrop {
+    align-items: end;
+    padding: 10px;
+  }
+
+  .modal {
+    max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    overflow-y: auto;
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .modal textarea {
+    max-height: 46dvh;
+  }
+
+  .modal-actions {
+    gap: 8px;
+  }
+
+  .page-layer {
+    padding: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  .page-header {
+    grid-template-columns: auto 1fr auto;
+    gap: 8px;
+    padding: calc(8px + env(safe-area-inset-top)) 10px 8px;
+  }
+
+  .home-grid,
+  .settings-band,
+  .memory-list {
+    width: calc(100% - 12px);
+  }
+
+  .home-grid {
+    margin: 10px auto;
+    gap: 10px;
+  }
+
+  .large-box,
+  .settings-band {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .section-title-row {
+    align-items: flex-start;
+  }
+
+  .api-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .api-status {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .settings-band {
+    margin-bottom: calc(18px + env(safe-area-inset-bottom));
+  }
+
+  .memory-list {
+    margin-top: 10px;
+    margin-bottom: calc(78px + env(safe-area-inset-bottom));
+  }
+
+  .memory-footer {
+    padding: 10px;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+  }
+}
+
+.sidebar-content {
+  position: absolute;
+  left: 78px;
+  top: 50%;
+  transform: translate(-12px, -50%) scale(0.98);
+  max-height: min(62vh, calc(100vh - 210px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+  max-height: min(62dvh, calc(100dvh - 210px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+}
+
+.side-drawer.panel-open .sidebar-content {
+  transform: translate(0, -50%) scale(1);
+}
+
+@media (max-width: 540px) {
+  .sidebar-content {
+    left: 68px;
+    top: 50%;
+    max-height: min(58vh, calc(100vh - 230px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+    max-height: min(58dvh, calc(100dvh - 230px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+  }
+}
+
+/* Final dreamy skin override: image background + translucent lace cards */
+body {
+  background:
+    radial-gradient(circle at 10% 16%, rgba(255, 214, 232, 0.36), transparent 28%),
+    radial-gradient(circle at 90% 12%, rgba(255, 236, 246, 0.48), transparent 30%),
+    #fff7fb;
+}
+
+body::before {
+  inset: 0;
+  top: 0;
+  bottom: 0;
+  height: auto;
+  z-index: -2;
+  background:
+    linear-gradient(rgba(255, 247, 251, 0.18), rgba(255, 247, 251, 0.36)),
+    url("./assets/chat-bg.jpg") center / cover no-repeat;
+  opacity: 0.78;
+  transform: none;
+}
+
+body::after {
+  inset: 0;
+  top: 0;
+  bottom: 0;
+  height: auto;
+  z-index: -1;
+  background-image:
+    radial-gradient(circle, rgba(255, 143, 189, 0.38) 0 2px, transparent 2.6px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.55) 0 2px, transparent 2.6px);
+  background-size: 76px 76px, 112px 112px;
+  background-position: 12px 18px, 42px 56px;
+  opacity: 0.42;
+  transform: none;
+}
+
+.app-shell,
+.page-layer {
+  background:
+    linear-gradient(rgba(255, 247, 251, 0.36), rgba(255, 247, 251, 0.5)),
+    url("./assets/chat-bg.jpg") center / cover no-repeat;
+}
+
+.topbar,
+.page-header,
+.memory-footer {
+  background: rgba(255, 248, 252, 0.78);
+  border-color: rgba(255, 160, 202, 0.54);
+  backdrop-filter: blur(14px);
+}
+
+.empty-state,
+.ai-card,
+.player-bubble,
+.modal,
+.large-box,
+.settings-band,
+.sidebar-content,
+.character-card,
+.relation-card,
+.memory-item,
+.npc-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(255, 242, 249, 0.66)) padding-box,
+    repeating-linear-gradient(90deg, rgba(255, 199, 225, 0.82) 0 9px, rgba(255, 255, 255, 0.82) 9px 18px) border-box;
+  border: 3px solid transparent;
+  box-shadow: 0 16px 30px rgba(226, 93, 151, 0.13);
+  backdrop-filter: blur(10px);
+}
+
+.ai-card::before,
+.ai-card::after {
+  content: "";
+  position: absolute;
+  top: -14px;
+  width: 18px;
+  height: 26px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 2px solid rgba(255, 143, 189, 0.68);
+  border-bottom: 0;
+  border-radius: 18px 18px 5px 5px;
+  pointer-events: none;
+}
+
+.ai-card::before {
+  left: 24px;
+  right: auto;
+  transform: rotate(-18deg);
+}
+
+.ai-card::after {
+  left: 48px;
+  right: auto;
+  color: transparent;
+  transform: rotate(18deg);
+}
+
+.empty-state::before,
+.modal::before,
+.large-box::before,
+.settings-band::before,
+.sidebar-content::before {
+  content: "୨୧";
+  position: absolute;
+  left: 18px;
+  right: auto;
+  top: -14px;
+  height: auto;
+  background: transparent;
+  color: var(--pink-deep);
+  font-size: 18px;
+  opacity: 0.82;
+}
+
+.empty-state::after,
+.modal::after,
+.large-box::after,
+.settings-band::after,
+.sidebar-content::after,
+.character-card::after,
+.relation-card::after,
+.memory-item::after,
+.npc-card::after {
+  content: "♡";
+  right: 14px;
+  top: 10px;
+  color: rgba(245, 111, 171, 0.32);
+}
+
+.env-strip {
+  background:
+    linear-gradient(180deg, rgba(255, 247, 251, 0.82), rgba(255, 236, 245, 0.74)) padding-box,
+    repeating-linear-gradient(90deg, rgba(255, 207, 228, 0.9) 0 8px, rgba(255, 255, 255, 0.8) 8px 16px) border-box;
+}
+
+.dialogue-box {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.66), rgba(255, 241, 248, 0.56)) padding-box,
+    repeating-linear-gradient(90deg, rgba(255, 208, 228, 0.78) 0 9px, rgba(255, 255, 255, 0.72) 9px 18px) border-box;
+  border: 3px solid transparent;
+  border-radius: 24px;
+  backdrop-filter: blur(8px);
+}
+
+.dialogue-box::before {
+  content: "୨୧";
+  left: 18px;
+  right: auto;
+  top: -14px;
+  bottom: auto;
+  height: auto;
+  background: transparent;
+  color: var(--pink-deep);
+  font-size: 16px;
+}
+
+.dialogue-box::after {
+  content: "";
+  inset: 7px;
+  border: 1px dotted rgba(255, 143, 189, 0.5);
+  border-radius: 18px;
+  background: transparent;
+}
+
+.round-button,
+.drawer-tab {
+  background: radial-gradient(circle at 35% 30%, #fff, #ffc1da 44%, #f56fab 100%);
+}
+
+.round-button::before,
+.round-button::after {
+  display: block;
+}
+
+@media (max-width: 540px) {
+  body::before,
+  body::after {
+    inset: 0;
+    height: auto;
+  }
+}
+
+/* Soft pink decorative skin */
+:root {
+  --bg: #fff3f8;
+  --surface: rgba(255, 255, 255, 0.9);
+  --surface-strong: #fff0f7;
+  --pink: #f56fab;
+  --pink-deep: #d94f8d;
+  --pink-soft: #ffd5e7;
+  --ink: #5b4352;
+  --muted: #947886;
+  --line: #f6bfd7;
+  --lace: #ffe8f1;
+  --shadow: 0 16px 34px rgba(226, 93, 151, 0.18);
+  --small-shadow: 0 8px 18px rgba(226, 93, 151, 0.2);
+}
+
+body {
+  background:
+    radial-gradient(circle at 12% 12%, rgba(255, 170, 205, 0.22) 0 9px, transparent 10px 100%),
+    radial-gradient(circle at 82% 18%, rgba(255, 220, 238, 0.8) 0 14px, transparent 15px 100%),
+    linear-gradient(135deg, rgba(244, 108, 166, 0.12) 25%, transparent 25%) 0 0 / 44px 44px,
+    linear-gradient(225deg, rgba(244, 108, 166, 0.1) 25%, transparent 25%) 0 0 / 44px 44px,
+    linear-gradient(180deg, #fff8fb 0%, #fff1f7 52%, #fff7fb 100%);
+  color: var(--ink);
+}
+
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  height: 16px;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 12px 0, transparent 13px, rgba(255, 255, 255, 0.72) 14px 20px, transparent 21px) 0 0 / 28px 16px repeat-x,
+    linear-gradient(90deg, transparent, rgba(245, 111, 171, 0.18), transparent);
+}
+
+body::before {
+  top: calc(54px + env(safe-area-inset-top));
+}
+
+body::after {
+  bottom: calc(82px + env(safe-area-inset-bottom));
+  transform: rotate(180deg);
+}
+
+.app-shell {
+  background:
+    radial-gradient(circle at 18% 38%, rgba(255, 187, 215, 0.24), transparent 28%),
+    radial-gradient(circle at 88% 82%, rgba(255, 210, 231, 0.34), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 244, 250, 0.34));
+}
+
+.topbar {
+  background: rgba(255, 244, 249, 0.86);
+  border-bottom: 2px solid rgba(246, 191, 215, 0.7);
+  box-shadow: 0 10px 24px rgba(226, 93, 151, 0.12);
+}
+
+.topbar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -8px;
+  height: 8px;
+  background: radial-gradient(circle at 8px 0, rgba(255, 255, 255, 0.9) 0 7px, transparent 8px) 0 0 / 18px 8px repeat-x;
+  pointer-events: none;
+}
+
+.icon-text-button,
+.send-button,
+.small-button {
+  position: relative;
+  background: linear-gradient(180deg, #ff8dbc, #ee5fa1);
+  border: 2px solid rgba(255, 214, 231, 0.9);
+  color: #fff;
+  box-shadow: 0 8px 0 rgba(210, 72, 136, 0.13), 0 12px 22px rgba(226, 93, 151, 0.22);
+}
+
+.icon-text-button::after,
+.send-button::after,
+.small-button::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin-left: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.16);
+}
+
+.ghost-button,
+.message-action {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 244, 249, 0.94));
+  border: 2px dashed var(--pink-soft);
+  color: var(--pink-deep);
+  box-shadow: 0 7px 15px rgba(226, 93, 151, 0.12);
+}
+
+.danger-button {
+  background: linear-gradient(180deg, #fff7fa, #ffe9ef);
+  border: 2px dashed #ffb9cd;
+  box-shadow: 0 7px 15px rgba(226, 93, 151, 0.12);
+}
+
+.round-button,
+.drawer-tab {
+  background: radial-gradient(circle at 35% 30%, #fff, #ffb6d3 42%, #f56fab 100%);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 18px rgba(226, 93, 151, 0.26);
+}
+
+.chat-log {
+  position: relative;
+}
+
+.empty-state,
+.ai-card,
+.player-bubble,
+.modal,
+.large-box,
+.settings-band,
+.sidebar-content,
+.character-card,
+.relation-card,
+.memory-item,
+.npc-card {
+  position: relative;
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    repeating-linear-gradient(90deg, #ffd6e8 0 10px, #fff4fa 10px 20px) border-box;
+  border: 3px solid transparent;
+  box-shadow: 0 16px 30px rgba(226, 93, 151, 0.14);
+}
+
+.empty-state::before,
+.ai-card::before,
+.modal::before,
+.large-box::before,
+.settings-band::before,
+.sidebar-content::before {
+  content: "";
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  top: -8px;
+  height: 14px;
+  background: radial-gradient(circle at 7px 7px, #fff 0 6px, transparent 7px) 0 0 / 18px 14px repeat-x;
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.empty-state::after,
+.ai-card::after,
+.modal::after,
+.large-box::after,
+.settings-band::after,
+.sidebar-content::after {
+  content: "♡";
+  position: absolute;
+  right: 14px;
+  top: 10px;
+  color: rgba(245, 111, 171, 0.34);
+  font-size: 22px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.player-bubble {
+  background:
+    linear-gradient(180deg, rgba(255, 242, 248, 0.98), rgba(255, 255, 255, 0.98)) padding-box,
+    repeating-linear-gradient(135deg, #ffd2e5 0 8px, #fff4fa 8px 16px) border-box;
+  border-radius: 24px 24px 8px 24px;
+}
+
+.ai-card {
+  border-radius: 24px;
+  padding: 18px 14px 14px;
+}
+
+.env-strip {
+  background:
+    linear-gradient(180deg, rgba(255, 247, 251, 0.98), rgba(255, 236, 245, 0.96)) padding-box,
+    repeating-linear-gradient(90deg, #ffcfe4 0 8px, #fff 8px 16px) border-box;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.8), 0 8px 18px rgba(226, 93, 151, 0.1);
+}
+
+.env-strip span {
+  border: 1px dashed rgba(245, 111, 171, 0.36);
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--pink-deep);
+}
+
+.story-body p {
+  color: #6b5361;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.dialogue-box {
+  position: relative;
+  margin: 6px 0 20px;
+  padding: 18px 16px 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 246, 250, 0.97)) padding-box,
+    repeating-linear-gradient(90deg, #ffd0e4 0 9px, #fff 9px 18px) border-box;
+  border: 3px solid transparent;
+  border-radius: 24px;
+  box-shadow: 0 12px 26px rgba(226, 93, 151, 0.12);
+}
+
+.dialogue-box::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: -8px;
+  height: 12px;
+  background: radial-gradient(circle at 6px 0, transparent 0 5px, rgba(255, 220, 235, 0.92) 6px 7px, transparent 8px) 0 0 / 16px 12px repeat-x;
+  pointer-events: none;
+}
+
+.dialogue-speaker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #fff0f7;
+  color: var(--pink-deep);
+  border: 1px dashed rgba(245, 111, 171, 0.42);
+}
+
+.dialogue-speaker::before {
+  content: "✧";
+}
+
+.button-row {
+  border-top: 2px dashed #f8d5e4;
+}
+
+.input-bar {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 244, 249, 0.96)) padding-box,
+    repeating-linear-gradient(90deg, #ffcde2 0 10px, #fff 10px 20px) border-box;
+  border: 3px solid transparent;
+  border-radius: 30px;
+  box-shadow: 0 0 0 5px rgba(255, 231, 241, 0.72), 0 16px 34px rgba(226, 93, 151, 0.18);
+}
+
+.input-bar textarea,
+textarea,
+input,
+select {
+  background: rgba(255, 255, 255, 0.82);
+  border: 2px solid #f5c5da;
+  border-radius: 22px;
+  box-shadow: inset 0 2px 8px rgba(226, 93, 151, 0.08);
+}
+
+.side-drawer {
+  filter: drop-shadow(0 10px 18px rgba(226, 93, 151, 0.2));
+}
+
+.sidebar-icons {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 240, 247, 0.92)) padding-box,
+    repeating-linear-gradient(180deg, #ffcfe4 0 10px, #fff 10px 20px) border-box;
+  border: 3px solid transparent;
+}
+
+.sidebar-icon {
+  background: linear-gradient(180deg, #fff, #fff0f7);
+  border: 2px solid #ffd3e6;
+}
+
+.sidebar-icon.active {
+  background: radial-gradient(circle at 35% 25%, #fff, #ff9bc5 40%, #f56fab 100%);
+  color: #fff;
+  box-shadow: 0 10px 20px rgba(226, 93, 151, 0.28);
+}
+
+.sidebar-content h2,
+.panel h2,
+.large-box h2,
+.settings-band h2,
+.modal h2,
+.page-header h1 {
+  color: var(--pink-deep);
+  text-shadow: 0 2px 0 rgba(255, 255, 255, 0.9);
+}
+
+.round-group h3,
+.memory-type {
+  background: #fff3f8;
+  border: 1px dashed #f4bfd6;
+  color: var(--pink-deep);
+}
+
+.page-layer {
+  background:
+    radial-gradient(circle at 15% 12%, rgba(255, 189, 216, 0.28), transparent 22%),
+    radial-gradient(circle at 90% 40%, rgba(255, 220, 235, 0.42), transparent 24%),
+    linear-gradient(180deg, #fff8fb, #fff1f7);
+}
+
+.page-header {
+  background: rgba(255, 243, 249, 0.9);
+  border-bottom: 2px solid rgba(246, 191, 215, 0.68);
+  box-shadow: 0 10px 24px rgba(226, 93, 151, 0.12);
+}
+
+.memory-footer {
+  background: rgba(255, 243, 249, 0.9);
+  border-top: 2px solid rgba(246, 191, 215, 0.68);
+  box-shadow: 0 -10px 24px rgba(226, 93, 151, 0.1);
+}
+
+.modal-backdrop {
+  background: rgba(105, 70, 91, 0.3);
+  backdrop-filter: blur(6px);
+}
+
+@media (max-width: 540px) {
+  body::before {
+    top: calc(48px + env(safe-area-inset-top));
+  }
+
+  body::after {
+    bottom: calc(82px + env(safe-area-inset-bottom));
+  }
+
+  .ai-card {
+    padding: 16px 10px 12px;
+    border-radius: 22px;
+  }
+
+  .env-strip {
+    border-radius: 20px;
+  }
+
+  .input-bar {
+    border-radius: 26px;
+  }
+
+  .empty-state::before,
+  .ai-card::before,
+  .modal::before,
+  .large-box::before,
+  .settings-band::before,
+  .sidebar-content::before {
+    left: 12px;
+    right: 12px;
+  }
+}
+
+.sidebar-content {
+  position: absolute !important;
+  left: 78px !important;
+  top: 50% !important;
+  transform: translate(-12px, -50%) scale(0.98) !important;
+  max-height: min(62vh, calc(100vh - 210px - env(safe-area-inset-top) - env(safe-area-inset-bottom))) !important;
+  max-height: min(62dvh, calc(100dvh - 210px - env(safe-area-inset-top) - env(safe-area-inset-bottom))) !important;
+}
+
+.side-drawer.panel-open .sidebar-content {
+  transform: translate(0, -50%) scale(1) !important;
+}
+
+@media (max-width: 540px) {
+  .sidebar-content {
+    left: 68px !important;
+    top: 50% !important;
+    max-height: min(58vh, calc(100vh - 230px - env(safe-area-inset-top) - env(safe-area-inset-bottom))) !important;
+    max-height: min(58dvh, calc(100dvh - 230px - env(safe-area-inset-top) - env(safe-area-inset-bottom))) !important;
+  }
+}
+
+</style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="side-drawer" id="sideDrawer" data-mode="status">
+        <button class="drawer-tab" id="drawerToggle" aria-label="拖动或点击打开侧边信息栏" aria-expanded="false">拖动</button>
+        <nav class="sidebar-icons" aria-label="侧边信息类型">
+          <button class="sidebar-icon active" id="statusModeButton" type="button" aria-label="在场人物状态">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </button>
+          <button class="sidebar-icon" id="relationModeButton" type="button" aria-label="已解锁人物关系">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 12h8"/><path d="M7 7.5a4 4 0 1 0 0 8"/><path d="M17 7.5a4 4 0 1 1 0 8"/><circle cx="7" cy="12" r="2.5"/><circle cx="17" cy="12" r="2.5"/></svg>
+          </button>
+        </nav>
+        <section class="sidebar-content" aria-live="polite">
+          <h2 id="sidebarPanelTitle">在场人物状态</h2>
+          <div id="statusList" class="status-list"></div>
+          <div id="relationList" class="relation-list hidden"></div>
+        </section>
+      </aside>
+
+      <main class="chat-screen">
+        <header class="topbar">
+          <div class="topbar-actions">
+            <button class="icon-text-button" id="fullscreenButton" type="button">全屏</button>
+            <button class="icon-text-button" id="memoryButton" type="button">记忆</button>
+            <button class="icon-text-button" id="homeButton" type="button">主页</button>
+          </div>
+        </header>
+
+        <section class="chat-log" id="chatLog" aria-live="polite"></section>
+
+        <form class="input-bar" id="inputForm">
+          <button class="round-button" id="directiveButton" type="button" aria-label="剧情发展指令">+</button>
+          <textarea id="playerInput" rows="1" placeholder="输入你的行动、观察或对话..."></textarea>
+          <button class="send-button" type="submit">发送</button>
+        </form>
+      </main>
+    </div>
+
+    <div class="modal-backdrop hidden" id="directiveModal" hidden>
+      <section class="modal">
+        <h2>剧情发展指令</h2>
+        <textarea id="directiveInput" rows="7" placeholder="输入希望 AI 扩写的环境、事件、NPC 行动或剧情方向。AI 不会代替主控反应。"></textarea>
+        <div class="modal-actions">
+          <button class="ghost-button" id="directiveCancel" type="button">取消</button>
+          <button class="send-button" id="directiveSend" type="button">发送</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="page-layer hidden" id="memoryPage" hidden>
+      <header class="page-header">
+        <button class="ghost-button" data-close-page="memoryPage" type="button">返回</button>
+        <h1>记忆</h1>
+        <select id="memoryFilter" aria-label="筛选记忆">
+          <option value="all">全部</option>
+          <option value="instant">即时记忆</option>
+          <option value="long">长期记忆</option>
+        </select>
+      </header>
+      <section class="memory-list" id="memoryList"></section>
+      <footer class="memory-footer">
+        <button class="send-button" id="mergeMemoryButton" type="button">整合</button>
+      </footer>
+    </div>
+
+    <div class="page-layer hidden" id="homePage" hidden>
+      <header class="page-header">
+        <button class="ghost-button" data-close-page="homePage" type="button">返回</button>
+        <h1>主页</h1>
+        <button class="send-button" id="saveHomeButton" type="button">保存</button>
+      </header>
+
+      <section class="home-grid">
+        <article class="large-box">
+          <div class="section-title-row">
+            <h2>世界设定</h2>
+            <button class="small-button" id="saveWorldButton" type="button">保存</button>
+          </div>
+          <textarea id="worldSetting" rows="14" placeholder="世界观、社会规则、时代背景、势力关系、叙事尺度、对话风格、剧情偏好、禁忌事项等最高优先级设定。"></textarea>
+        </article>
+
+        <article class="large-box">
+          <div class="section-title-row">
+            <h2>角色设定</h2>
+            <button class="small-button" id="saveCharacterButton" type="button">保存</button>
+          </div>
+          <div class="sub-box">
+            <h3>主控（你）</h3>
+            <div class="profile-grid">
+              <input id="playerName" type="text" placeholder="姓名" />
+              <input id="playerGender" type="text" placeholder="性别" />
+              <input id="playerAge" type="text" placeholder="年龄" />
+            </div>
+            <textarea id="playerDetail" rows="5" placeholder="身份、容貌、隐私设定、说话风格、能力限制等。AI 输出时会用第二人称代替主控姓名。"></textarea>
+          </div>
+          <div class="npc-editor">
+            <div class="npc-editor-head">
+              <h3>主要 NPC</h3>
+              <button class="small-button" id="addNpcButton" type="button">添加</button>
+            </div>
+            <div id="npcList"></div>
+          </div>
+        </article>
+      </section>
+
+      <section class="settings-band">
+        <div class="section-title-row">
+          <h2>设置</h2>
+          <button class="small-button" id="saveApiButton" type="button">保存</button>
+        </div>
+        <div class="settings-grid">
+          <label>API URL<input id="apiUrl" type="text" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions" /></label>
+          <label>密钥<input id="apiKey" type="password" placeholder="sk-..." /></label>
+          <label>模型<input id="apiModel" type="text" list="modelOptions" placeholder="qwen-plus 或 qwen3.5-plus" /></label>
+        </div>
+        <datalist id="modelOptions"></datalist>
+        <div class="api-actions">
+          <button class="ghost-button" id="qwenPresetButton" type="button">千问</button>
+          <button class="ghost-button" id="fetchModelsButton" type="button">拉取模型</button>
+          <button class="send-button" id="testApiButton" type="button">检验连接</button>
+          <span class="api-status" id="apiStatus" aria-live="polite"></span>
+        </div>
+        <div class="api-hint">千问默认使用 OpenAI 兼容地址；也可填百炼 Workspace 地址，保存时会自动补全 /chat/completions。</div>
+        <div class="archive-note">自动存档读档已开启，关闭后再次进入会自动接续。</div>
+        <button class="danger-button" id="resetButton" type="button">重置游戏</button>
+      </section>
+    </div>
+
+    <div class="modal-backdrop hidden" id="editModal" hidden>
+      <section class="modal">
+        <h2 id="editTitle">修改</h2>
+        <textarea id="editInput" rows="7"></textarea>
+        <div class="modal-actions">
+          <button class="ghost-button" id="editCancel" type="button">取消</button>
+          <button class="send-button" id="editSave" type="button">保存</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop hidden" id="confirmModal" hidden>
+      <section class="modal confirm-modal">
+        <h2>确认重置</h2>
+        <p>这会清空世界观、NPC 设定、聊天记录、记忆和人物状态。</p>
+        <div class="modal-actions">
+          <button class="ghost-button" id="resetCancel" type="button">取消</button>
+          <button class="danger-button" id="resetConfirm" type="button">确认清空</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop hidden" id="actionConfirmModal" hidden>
+      <section class="modal confirm-modal">
+        <h2 id="actionConfirmTitle">确认操作</h2>
+        <p id="actionConfirmText">确认继续吗？</p>
+        <div class="modal-actions">
+          <button class="ghost-button" id="actionConfirmCancel" type="button">取消</button>
+          <button class="danger-button" id="actionConfirmOk" type="button">确认</button>
+        </div>
+      </section>
+    </div>
+
+    <script>
+const STORAGE_KEY = "muyu-ai-adventure-state-v1";
+const QWEN_DEFAULT_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
+
+const defaultState = {
+  settings: {
+    world: "",
+    player: { name: "", gender: "", age: "", detail: "" },
+    npcs: [],
+    apiUrl: QWEN_DEFAULT_URL,
+    apiKey: "",
+    apiModel: "qwen-plus",
+    apiModels: ["qwen-plus", "qwen3.5-plus", "qwen3-plus", "qwen-turbo", "qwen-max", "qwen-long"]
+  },
+  events: [],
+  snapshots: [],
+  selectedMemories: []
+};
+
+let state = loadState();
+let editContext = null;
+let pendingConfirm = null;
+let memoryNotice = "";
+
+const els = {
+  chatLog: document.getElementById("chatLog"),
+  inputForm: document.getElementById("inputForm"),
+  playerInput: document.getElementById("playerInput"),
+  directiveButton: document.getElementById("directiveButton"),
+  directiveModal: document.getElementById("directiveModal"),
+  directiveInput: document.getElementById("directiveInput"),
+  directiveCancel: document.getElementById("directiveCancel"),
+  directiveSend: document.getElementById("directiveSend"),
+  drawerToggle: document.getElementById("drawerToggle"),
+  sideDrawer: document.getElementById("sideDrawer"),
+  sidebarPanelTitle: document.getElementById("sidebarPanelTitle"),
+  statusModeButton: document.getElementById("statusModeButton"),
+  relationModeButton: document.getElementById("relationModeButton"),
+  statusList: document.getElementById("statusList"),
+  relationList: document.getElementById("relationList"),
+  memoryButton: document.getElementById("memoryButton"),
+  homeButton: document.getElementById("homeButton"),
+  fullscreenButton: document.getElementById("fullscreenButton"),
+  memoryPage: document.getElementById("memoryPage"),
+  homePage: document.getElementById("homePage"),
+  memoryFilter: document.getElementById("memoryFilter"),
+  memoryList: document.getElementById("memoryList"),
+  mergeMemoryButton: document.getElementById("mergeMemoryButton"),
+  worldSetting: document.getElementById("worldSetting"),
+  playerName: document.getElementById("playerName"),
+  playerGender: document.getElementById("playerGender"),
+  playerAge: document.getElementById("playerAge"),
+  playerDetail: document.getElementById("playerDetail"),
+  apiUrl: document.getElementById("apiUrl"),
+  apiKey: document.getElementById("apiKey"),
+  apiModel: document.getElementById("apiModel"),
+  modelOptions: document.getElementById("modelOptions"),
+  saveWorldButton: document.getElementById("saveWorldButton"),
+  saveCharacterButton: document.getElementById("saveCharacterButton"),
+  saveApiButton: document.getElementById("saveApiButton"),
+  qwenPresetButton: document.getElementById("qwenPresetButton"),
+  fetchModelsButton: document.getElementById("fetchModelsButton"),
+  testApiButton: document.getElementById("testApiButton"),
+  apiStatus: document.getElementById("apiStatus"),
+  addNpcButton: document.getElementById("addNpcButton"),
+  npcList: document.getElementById("npcList"),
+  saveHomeButton: document.getElementById("saveHomeButton"),
+  resetButton: document.getElementById("resetButton"),
+  confirmModal: document.getElementById("confirmModal"),
+  resetCancel: document.getElementById("resetCancel"),
+  resetConfirm: document.getElementById("resetConfirm"),
+  actionConfirmModal: document.getElementById("actionConfirmModal"),
+  actionConfirmTitle: document.getElementById("actionConfirmTitle"),
+  actionConfirmText: document.getElementById("actionConfirmText"),
+  actionConfirmCancel: document.getElementById("actionConfirmCancel"),
+  actionConfirmOk: document.getElementById("actionConfirmOk"),
+  editModal: document.getElementById("editModal"),
+  editTitle: document.getElementById("editTitle"),
+  editInput: document.getElementById("editInput"),
+  editCancel: document.getElementById("editCancel"),
+  editSave: document.getElementById("editSave")
+};
+
+function uid(prefix) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function loadState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    return saved ? migrateState({ ...clone(defaultState), ...saved }) : clone(defaultState);
+  } catch {
+    return clone(defaultState);
+  }
+}
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function migrateState(next) {
+  next.settings = { ...clone(defaultState.settings), ...(next.settings || {}) };
+  if (typeof next.settings.player === "string") {
+    next.settings.player = { name: "", gender: "", age: "", detail: next.settings.player };
+  } else {
+    next.settings.player = { name: "", gender: "", age: "", detail: "", ...(next.settings.player || {}) };
+  }
+  next.settings.npcs = Array.isArray(next.settings.npcs) ? next.settings.npcs : [];
+  next.settings.apiModels = Array.isArray(next.settings.apiModels) ? next.settings.apiModels : [];
+  if (!next.settings.apiUrl || !isQwenUrl(next.settings.apiUrl)) next.settings.apiUrl = QWEN_DEFAULT_URL;
+  if (!next.settings.apiModel) next.settings.apiModel = "qwen-plus";
+  next.settings.apiModels = [...new Set([...next.settings.apiModels, ...defaultState.settings.apiModels])];
+  next.events = Array.isArray(next.events) ? next.events : [];
+  next.snapshots = Array.isArray(next.snapshots) ? next.snapshots : [];
+  next.selectedMemories = Array.isArray(next.selectedMemories) ? next.selectedMemories : [];
+  const originalLength = next.events.length;
+  next.events = next.events.filter((event) => !isLegacyLocalFallbackEvent(event));
+  if (next.events.length !== originalLength) {
+    next.snapshots = [];
+    next.selectedMemories = [];
+  }
+  return next;
+}
+
+function isLegacyLocalFallbackEvent(event) {
+  if (!event || event.type !== "ai" || event.status === "loading") return false;
+  const blocks = Array.isArray(event.story?.blocks) ? event.story.blocks : [];
+  const text = blocks.map((block) => block?.text || "").join("\n");
+  return [
+    "新的行动信息进入场景后",
+    "世界设定中的规则在暗处稳定地发挥作用",
+    "没有替你做出任何决定",
+    "一处不起眼的痕迹被",
+    "主控推动了剧情："
+  ].some((phrase) => text.includes(phrase));
+}
+
+function escapeHtml(text) {
+  return String(text || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function latestSnapshot() {
+  return state.snapshots[state.snapshots.length - 1] || buildInitialSnapshot();
+}
+
+function buildInitialSnapshot() {
+  return {
+    env: { time: "傍晚", place: "未命名的起点", weather: "微风" },
+    statuses: [],
+    relations: [],
+    memories: { instant: [], long: [] },
+    seed: 1
+  };
+}
+
+function renderAll() {
+  renderChat();
+  renderSidebar();
+  renderHome();
+  renderMemoryPage();
+  saveState();
+}
+
+function renderChat() {
+  els.chatLog.innerHTML = "";
+  if (!state.events.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.textContent = "从底部输入第一句话开始冒险。AI 会保持三段式输出，并把人物状态、关系和记忆同步刷新。";
+    els.chatLog.appendChild(empty);
+    return;
+  }
+
+  state.events.filter((event) => event.type === "player" || event.type === "ai").forEach((event) => {
+    const node = event.type === "player" ? renderPlayerMessage(event) : renderAiMessage(event);
+    els.chatLog.appendChild(node);
+  });
+  requestAnimationFrame(() => {
+    els.chatLog.scrollTop = els.chatLog.scrollHeight;
+  });
+}
+
+function renderPlayerMessage(event) {
+  const wrapper = document.createElement("article");
+  wrapper.className = "message player";
+  wrapper.dataset.id = event.id;
+  wrapper.innerHTML = `
+    <div class="player-bubble">
+      <div class="player-text">${escapeHtml(event.text)}</div>
+      <div class="button-row">
+        <button class="message-action" data-action="delete-player" data-id="${event.id}" type="button">删除</button>
+        <button class="message-action" data-action="edit-player" data-id="${event.id}" type="button">修改</button>
+      </div>
+    </div>
+  `;
+  return wrapper;
+}
+
+function renderAiMessage(event) {
+  const wrapper = document.createElement("article");
+  wrapper.className = "message ai";
+  wrapper.dataset.id = event.id;
+  const isLoading = event.status === "loading";
+  const isError = event.status === "error";
+  const story = event.story || {
+    env: isError
+      ? { time: "生成失败", place: "API 连接", weather: "错误" }
+      : { time: "生成中", place: "剧情引擎", weather: "等待" },
+    blocks: []
+  };
+  const storyHtml = isLoading
+    ? `<p class="typing-indicator">${escapeHtml(event.streamText || "正在输入中……")}</p>`
+    : isError
+      ? `<p class="error-text">${escapeHtml(event.errorMessage || "生成失败，请检查 API 设置。")}</p>`
+      : story.blocks
+    .map((block) => {
+      if (block.type === "dialogue") {
+        return `
+          <div class="dialogue-box">
+            <span class="dialogue-speaker">对话方框 - ${escapeHtml(block.speaker)}</span>
+            <div class="dialogue-text">"${escapeHtml(block.text)}"</div>
+          </div>
+        `;
+      }
+      return `<p>${escapeHtml(block.text)}</p>`;
+    })
+    .join("");
+
+  wrapper.innerHTML = `
+    <div class="ai-card">
+      <div class="env-strip">
+        <span>时间：${escapeHtml(story.env.time)}</span>
+        <span>地点：${escapeHtml(story.env.place)}</span>
+        <span>天气：${escapeHtml(story.env.weather)}</span>
+      </div>
+      <div class="story-body">${storyHtml}</div>
+      <div class="button-row">
+        <button class="message-action" data-action="delete-ai" data-id="${event.id}" type="button">删除</button>
+        <button class="message-action" data-action="reroll-ai" data-id="${event.id}" type="button">重说</button>
+        <button class="message-action" data-action="edit-ai" data-id="${event.id}" type="button">修改</button>
+      </div>
+    </div>
+  `;
+  return wrapper;
+}
+
+function renderSidebar() {
+  const mode = state.sidebarMode || "status";
+  els.sideDrawer.dataset.mode = mode;
+  els.sidebarPanelTitle.textContent = mode === "status" ? "在场人物状态" : "已解锁人物关系";
+  els.statusModeButton.classList.toggle("active", mode === "status");
+  els.relationModeButton.classList.toggle("active", mode === "relation");
+  els.statusList.classList.toggle("hidden", mode !== "status");
+  els.relationList.classList.toggle("hidden", mode !== "relation");
+  const current = getCurrentSidebarSnapshot();
+
+  els.statusList.innerHTML = "";
+  if (!current.statuses.length) {
+    els.statusList.innerHTML = `<div class="character-card">暂无在场人物。添加主要 NPC 或开始剧情后会自动刷新。</div>`;
+  } else {
+    current.statuses.forEach((person) => {
+      const card = document.createElement("article");
+      card.className = "character-card";
+      card.innerHTML = `
+        <div>姓名：${escapeHtml(person.name)}</div>
+        <div>年龄：${escapeHtml(person.age)}</div>
+        <div>外形：${escapeHtml(person.appearance || "外形细节仍在当前光线里逐步清晰。")}</div>
+        <div>体位（姿势）：${escapeHtml(person.posture || "停在便于观察局势的位置。")}</div>
+        <div>内心想法：${escapeHtml(ensureLongThought(person.thought, person.name))}</div>
+        <div>对“你”印象：${escapeHtml(person.impression || "仍在观察你的意图与边界。")}</div>
+      `;
+      els.statusList.appendChild(card);
+    });
+  }
+
+  els.relationList.innerHTML = "";
+  if (!current.relations.length) {
+    els.relationList.innerHTML = `<div class="relation-card">暂无已解锁关系。</div>`;
+  } else {
+    current.relations.forEach((rel) => {
+      const card = document.createElement("article");
+      card.className = "relation-card";
+      card.innerHTML = `
+        <div>人物：${escapeHtml(rel.name)}</div>
+        <div>关系：${escapeHtml(rel.description)}</div>
+        <div>好感度：${escapeHtml(rel.affection)}</div>
+      `;
+      els.relationList.appendChild(card);
+    });
+  }
+}
+
+function getCurrentSidebarSnapshot() {
+  const snapshot = latestSnapshot();
+  return {
+    statuses: clone(snapshot.statuses || []),
+    relations: clone(snapshot.relations || [])
+  };
+}
+
+function renderHome() {
+  const player = getPlayerProfile();
+  els.worldSetting.value = state.settings.world;
+  els.playerName.value = player.name;
+  els.playerGender.value = player.gender;
+  els.playerAge.value = player.age;
+  els.playerDetail.value = player.detail;
+  els.apiUrl.value = state.settings.apiUrl;
+  els.apiKey.value = state.settings.apiKey;
+  els.apiModel.value = state.settings.apiModel;
+  renderModelOptions();
+  els.npcList.innerHTML = "";
+
+  state.settings.npcs.forEach((npc) => {
+    const card = document.createElement("article");
+    card.className = "npc-card";
+    card.dataset.id = npc.id;
+    card.innerHTML = `
+      <input data-npc-field="name" value="${escapeHtml(npc.name)}" placeholder="姓名" />
+      <input data-npc-field="gender" value="${escapeHtml(npc.gender)}" placeholder="性别" />
+      <input data-npc-field="age" value="${escapeHtml(npc.age)}" placeholder="年龄" />
+      <button class="message-action" data-action="remove-npc" data-id="${npc.id}" type="button">删除</button>
+      <textarea data-npc-field="detail" rows="4" placeholder="容貌、性格、经历、关系等">${escapeHtml(npc.detail)}</textarea>
+    `;
+    els.npcList.appendChild(card);
+  });
+}
+
+function renderModelOptions() {
+  els.modelOptions.innerHTML = "";
+  (state.settings.apiModels || []).forEach((model) => {
+    const option = document.createElement("option");
+    option.value = model;
+    els.modelOptions.appendChild(option);
+  });
+}
+
+function renderMemoryPage() {
+  const snap = latestSnapshot();
+  const memories = [
+    ...snap.memories.instant.map((memory) => ({ ...memory, type: "instant", label: "即时记忆" })),
+    ...snap.memories.long.map((memory) => ({ ...memory, type: "long", label: "长期记忆" }))
+  ].filter((memory) => els.memoryFilter.value === "all" || memory.type === els.memoryFilter.value);
+  const validMemoryIds = new Set([
+    ...snap.memories.instant.map((memory) => memory.id),
+    ...snap.memories.long.map((memory) => memory.id)
+  ]);
+  state.selectedMemories = state.selectedMemories.filter((id) => validMemoryIds.has(id));
+
+  els.memoryList.innerHTML = "";
+  if (memoryNotice) {
+    const notice = document.createElement("div");
+    notice.className = "memory-item";
+    notice.innerHTML = `<div></div><div>${escapeHtml(memoryNotice)}</div>`;
+    els.memoryList.appendChild(notice);
+  }
+  if (!memories.length) {
+    els.memoryList.insertAdjacentHTML("beforeend", `<div class="memory-item"><div></div><div>暂无记忆。</div></div>`);
+    return;
+  }
+
+  memories.forEach((memory) => {
+    const item = document.createElement("label");
+    item.className = "memory-item";
+    item.innerHTML = `
+      <input type="checkbox" data-memory-id="${memory.id}" ${state.selectedMemories.includes(memory.id) ? "checked" : ""} />
+      <div>
+        <div class="memory-type">${memory.label}</div>
+        <div>${escapeHtml(memory.text)}</div>
+      </div>
+    `;
+    els.memoryList.appendChild(item);
+  });
+}
+
+function ensureLongThought(text, name) {
+  const base = text || `我得先稳住，不能只凭眼前这一点动静就下判断。这个人到底可靠不可靠，还得看接下来怎么说、怎么做。`;
+  if (base.length >= 30) return base;
+  return `${base} 我再多看一会儿，别急着把话说满，也别贸然靠得太近。`;
+}
+
+function getPlayerProfile() {
+  if (typeof state.settings.player === "string") {
+    state.settings.player = { name: "", gender: "", age: "", detail: state.settings.player };
+  }
+  state.settings.player = { name: "", gender: "", age: "", detail: "", ...(state.settings.player || {}) };
+  return state.settings.player;
+}
+
+function formatPlayerProfileForPrompt() {
+  const player = getPlayerProfile();
+  return [
+    `姓名：${player.name || "未填写"}`,
+    `性别：${player.gender || "未填写"}`,
+    `年龄：${player.age || "未填写"}`,
+    `其他信息：${player.detail || "未填写"}`,
+    "底层规则：主控姓名只用于识别角色，AI 正文必须用第二人称代替主控姓名，不得直呼或机械复述主控姓名。",
+    "绝对禁止替主控说话、行动、思考、选择、反应或做决定。"
+  ].join("\n");
+}
+
+function syncWorldFromInputs() {
+  state.settings.world = els.worldSetting.value.trim();
+}
+
+function syncCharacterFromInputs() {
+  state.settings.player = {
+    name: els.playerName.value.trim(),
+    gender: els.playerGender.value.trim(),
+    age: els.playerAge.value.trim(),
+    detail: els.playerDetail.value.trim()
+  };
+  syncNpcSettingsFromInputs();
+}
+
+function syncNpcSettingsFromInputs() {
+  const cards = Array.from(els.npcList.querySelectorAll(".npc-card"));
+  if (!cards.length) return;
+  state.settings.npcs = cards.map((card) => ({
+    id: card.dataset.id || uid("npc"),
+    name: card.querySelector("[data-npc-field='name']")?.value.trim() || "",
+    gender: card.querySelector("[data-npc-field='gender']")?.value.trim() || "",
+    age: card.querySelector("[data-npc-field='age']")?.value.trim() || "",
+    detail: card.querySelector("[data-npc-field='detail']")?.value.trim() || ""
+  }));
+}
+
+function syncApiFromInputs() {
+  state.settings.apiUrl = normalizeApiUrl(els.apiUrl.value.trim());
+  state.settings.apiKey = els.apiKey.value.trim();
+  state.settings.apiModel = els.apiModel.value.trim();
+  els.apiUrl.value = state.settings.apiUrl;
+}
+
+function syncAllSettingsFromInputs() {
+  syncWorldFromInputs();
+  syncCharacterFromInputs();
+  syncApiFromInputs();
+}
+
+function showApiStatus(text, tone = "neutral") {
+  els.apiStatus.textContent = text;
+  els.apiStatus.dataset.tone = tone;
+}
+
+function saveSection(section) {
+  if (section === "world") syncWorldFromInputs();
+  if (section === "character") syncCharacterFromInputs();
+  if (section === "api") syncApiFromInputs();
+  if (section === "all") syncAllSettingsFromInputs();
+  rebuildTimeline();
+  renderAll();
+  if (section === "api") showApiStatus("已保存 API 设置。", "ok");
+}
+
+async function submitPlayerText(text) {
+  const trimmed = text.trim();
+  if (!trimmed) return;
+  const playerEvent = { id: uid("player"), type: "player", text: trimmed, createdAt: Date.now() };
+  state.events.push(playerEvent);
+  rebuildTimeline();
+  renderAll();
+  window.setTimeout(() => {
+    const aiEvent = createPendingAiEvent({ source: "player", text: trimmed });
+    state.events.push(aiEvent);
+    rebuildTimeline();
+    renderAll();
+    scheduleAiResolution(aiEvent.id);
+  }, 80);
+}
+
+async function submitDirective(text) {
+  const trimmed = text.trim();
+  if (!trimmed) return;
+  const aiEvent = createPendingAiEvent({ source: "directive", text: trimmed });
+  state.events.push(aiEvent);
+  rebuildTimeline();
+  renderAll();
+  scheduleAiResolution(aiEvent.id);
+}
+
+function scheduleAiResolution(id) {
+  window.setTimeout(() => {
+    resolveAiEvent(id);
+  }, 120);
+}
+
+function createPendingAiEvent({ source, text, variant = 0 }) {
+  return {
+    id: uid("ai"),
+    type: "ai",
+    source,
+    prompt: text,
+    variant,
+    status: "loading",
+    story: {
+      env: { time: "生成中", place: "剧情引擎", weather: "等待" },
+      blocks: [{ type: "paragraph", text: "正在输入中……" }]
+    },
+    createdAt: Date.now()
+  };
+}
+
+async function resolveAiEvent(id) {
+  const index = state.events.findIndex((event) => event.id === id);
+  const event = state.events[index];
+  if (!event || event.type !== "ai") return;
+  const previous = index > 0 ? state.snapshots[index - 1] || buildInitialSnapshot() : buildInitialSnapshot();
+  const loadingStartedAt = Date.now();
+  try {
+    let story = await generateStory({
+      source: event.source,
+      text: event.prompt || "",
+      previous,
+      variant: event.variant || 0,
+      eventId: id
+    });
+    if (event.avoidText && isTooSimilarStory(storyToPlainText(story), event.avoidText)) {
+      story = await generateStory({
+        source: event.source,
+        text: event.prompt || "",
+        previous,
+        variant: (event.variant || 0) + 101,
+        eventId: id
+      });
+      if (isTooSimilarStory(storyToPlainText(story), event.avoidText)) {
+        throw new Error("重说失败：模型返回内容与上一版过于相似，请再次点击重说或提高模型随机性。");
+      }
+    }
+    await keepTypingVisible(loadingStartedAt);
+    event.story = story;
+    event.status = "done";
+    delete event.errorMessage;
+  } catch (error) {
+    await keepTypingVisible(loadingStartedAt);
+    event.status = "error";
+    event.errorMessage = formatGenerationError(error);
+    event.story = {
+      env: { time: "生成失败", place: "API 连接", weather: "错误" },
+      blocks: [{ type: "paragraph", text: event.errorMessage }]
+    };
+  }
+  rebuildTimeline();
+  renderAll();
+}
+
+function keepTypingVisible(startedAt, minimum = 850) {
+  const elapsed = Date.now() - startedAt;
+  const rest = Math.max(0, minimum - elapsed);
+  return new Promise((resolve) => window.setTimeout(resolve, rest));
+}
+
+async function generateStory({ source, text, previous, variant, eventId }) {
+  syncAllSettingsFromInputs();
+  saveState();
+  if (!state.settings.apiUrl || !state.settings.apiKey || !state.settings.apiModel) {
+    throw new Error("请先在主页设置里填写 API URL、密钥和模型，并保存后再生成剧情。");
+  }
+  const event = state.events.find((item) => item.id === eventId);
+  return await generateWithApi({ source, text, previous, variant, eventId, avoidText: event?.avoidText || "" });
+}
+
+function ensureApiReady() {
+  syncAllSettingsFromInputs();
+  saveState();
+  if (!state.settings.apiUrl || !state.settings.apiKey || !state.settings.apiModel) {
+    throw new Error("请先在主页设置里填写 API URL、密钥和模型，并保存后再使用该功能。");
+  }
+}
+
+async function generateWithApi({ source, text, previous, variant, eventId, avoidText = "" }) {
+  const systemPrompt = [
+    "你是 MUYU 风格 AI 文字冒险引擎。",
+    "绝对禁止代替玩家角色说话、做动作或做决定；只能描写环境、推动剧情、扮演 NPC。",
+    "主控姓名只作为底层角色识别；正文中称呼主控时必须使用第二人称，不能直接写出主控姓名来替代玩家。",
+    "返回严格 JSON，不要 Markdown，不要代码块。结构：env{time,place,weather}, blocks 数组，元素为 {type:'paragraph',text} 或 {type:'dialogue',speaker,text}。",
+    "剧情正文必须是自然段，不能在一句话中间硬换行。每个 dialogue 只能包含一个角色的一句或一段台词。",
+    "dialogue.text 只能写角色真正说出口的话，禁止放入动作描写、心理描写、神态描写或旁白。",
+    "人物描写必须读取设定后自然提炼，不能整段照抄。外形要结合当前场景和情绪变化重新描写，NPC 行为要受记忆影响但不能 OOC。",
+    "NPC 必须像真实人物一样拥有稳定性格、欲望和顾虑；剧情发展要受到在场人物状态影响，例如开朗爱做饭的邻居会自然想到聊天、送食物或邀请吃饭，而不是只围绕抽象线索判断。",
+    "禁止在正文或人物状态里暴露生成逻辑、设定提炼、系统规则、模型限制等 AI 感文字。",
+    "如果出现人物说话，必须单独使用 dialogue 块；paragraph 里不得混入引号台词，也不得把台词和旁白挤在同一段。",
+    "禁止在 paragraph 正文里写“时间：地点：天气：”这种信息条内容；环境信息只能放在 env 字段。",
+    "重说时必须生成明显不同的新版本：更换至少两个环境细节、一个 NPC 动作、主要台词措辞和剧情推进方向；不能只替换同义词，不能与上一版大差不差。",
+    "世界设定是最高优先级硬规则：所有场景、人物、行为、心理、社会规则、时代背景、势力关系、叙事尺度、对话风格都必须 100% 遵循世界设定原文，禁止私自修改、增删、篡改或混搭无关题材、时代、规则。",
+    "必须理解设定并以设定为圆心自然发展叙事世界，不要生硬复述设定，但任何剧情推进都不能与设定冲突。",
+    "如果主要 NPC 出场，必须参照其人物设定里的性格、思维方式、行事逻辑和关系背景发展；禁止死套固定模板，禁止每回合机械重复设定，必须结合当前剧情和记忆自然演化。",
+    "人物状态里的内心想法必须是该角色本人第一人称心理 OS，用角色自己的口吻碎碎念；禁止第三人称心理概括、上帝视角解说、规则说明。",
+    "记忆是全局连续事实：即时记忆、长期记忆、整合记忆都必须永久生效；NPC 必须记得记忆里的事件、对话、人物印象，并在后续内心、对话、行为逻辑中持续体现，禁止失忆、忘记前情或人设割裂。",
+    `世界设定：${state.settings.world || "未填写"}`,
+    `主控设定：${formatPlayerProfileForPrompt()}`,
+    `主要 NPC：${JSON.stringify(state.settings.npcs)}`,
+    "主要 NPC 是参考资料：不需要立刻全部出场，也不需要每回合都出场；可以自然引入新 NPC 或让场景中人物随机变化。",
+    `当前环境：${JSON.stringify(previous.env)}`,
+    `当前记忆：${JSON.stringify(previous.memories)}`,
+    `生成模式：${source === "directive" ? "剧情发展指令扩写，不写玩家反应" : "回应玩家输入，不越权操控玩家"}`,
+    `重说差异种子：${variant}`,
+    avoidText ? `上一版剧情摘要，重说时必须避开这些内容和措辞：${avoidText.slice(0, 900)}` : ""
+  ].join("\n");
+
+  const response = await fetchWithTimeout(state.settings.apiUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${state.settings.apiKey}`
+    },
+    body: JSON.stringify({
+      model: state.settings.apiModel,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: text }
+      ],
+      temperature: variant ? 0.95 : 0.75,
+      presence_penalty: variant ? 0.8 : 0.2,
+      frequency_penalty: variant ? 0.7 : 0.1,
+      stream: true
+    })
+  }, getApiTimeout());
+
+  if (!response.ok) throw new Error(`API HTTP ${response.status}`);
+  const contentType = response.headers.get("content-type") || "";
+  let content = "";
+  if (response.body && /text\/event-stream|stream/i.test(contentType)) {
+    content = await readOpenAiStream(response, eventId);
+  } else {
+    const data = await response.json();
+    content = data.choices?.[0]?.message?.content || data.output_text || "";
+    updateStreamingText(eventId, makeStreamingPreview(content) || "正在整理剧情格式……");
+  }
+  const parsed = parseApiJsonContent(content);
+  return normalizeStory(parsed, previous, text, variant);
+}
+
+async function generateMergedMemoryWithApi(selected) {
+  ensureApiReady();
+  const memoryText = selected.map((item, index) => `${index + 1}. ${item.text}`).join("\n");
+  const systemPrompt = [
+    "你是文字冒险游戏的记忆整理器。",
+    "任务：把玩家勾选的即时记忆或长期记忆提炼成一条新的长期记忆。",
+    "禁止原文拼接，禁止逐条罗列，必须压缩核心事件、人物互动、NPC反应、关系变化和关键设定。",
+    "只输出一段中文长期记忆正文，不要标题、编号、Markdown、解释或引号。",
+    "这条记忆会永久影响后续剧情、NPC内心、对话和行为，所以必须保留会影响未来反应的事实。",
+    `世界设定：${state.settings.world || "未填写"}`,
+    `主控设定：${formatPlayerProfileForPrompt()}`,
+    `主要 NPC：${JSON.stringify(state.settings.npcs)}`
+  ].join("\n");
+  const response = await fetchWithTimeout(state.settings.apiUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${state.settings.apiKey}`
+    },
+    body: JSON.stringify({
+      model: state.settings.apiModel,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: `请整合以下记忆：\n${memoryText}` }
+      ],
+      temperature: 0.35,
+      presence_penalty: 0.1,
+      frequency_penalty: 0.25,
+      stream: false
+    })
+  }, getApiTimeout());
+  if (!response.ok) throw new Error(`API HTTP ${response.status}`);
+  const data = await response.json();
+  const raw = data.choices?.[0]?.message?.content || data.output_text || "";
+  const clean = String(raw || "")
+    .replace(/^```(?:text|markdown)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .replace(/^(长期记忆|整合记忆)\s*[:：]\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!clean) throw new Error("API 没有返回可用的整合记忆。");
+  return clean.length > 220 ? `${clean.slice(0, 220)}…` : clean;
+}
+
+async function readOpenAiStream(response, eventId) {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+  let content = "";
+  const handleLine = (line) => {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("data:")) return;
+    const payload = trimmed.slice(5).trim();
+    if (!payload || payload === "[DONE]") return;
+    try {
+      const json = JSON.parse(payload);
+      const delta = json.choices?.[0]?.delta?.content
+        || json.choices?.[0]?.message?.content
+        || json.output_text
+        || "";
+      if (delta) {
+        content += delta;
+        updateStreamingText(eventId, makeStreamingPreview(content));
+      }
+    } catch {
+      // Some providers send heartbeat lines or non-JSON keepalive chunks.
+    }
+  };
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split(/\r?\n/);
+    buffer = lines.pop() || "";
+    lines.forEach(handleLine);
+  }
+  if (buffer.trim()) handleLine(buffer);
+  updateStreamingText(eventId, makeStreamingPreview(content) || "正在整理剧情格式……");
+  return content;
+}
+
+function makeStreamingPreview(content) {
+  const raw = String(content || "").trim();
+  if (!raw) return "";
+  try {
+    const parsed = parseApiJsonContent(raw);
+    return storyToPlainText(parsed);
+  } catch {
+    const texts = [];
+    raw.replace(/"time"\s*:\s*"([^"]*)"/g, (_, value) => {
+      texts.push(`时间：${unescapeJsonString(value)}`);
+      return "";
+    });
+    raw.replace(/"place"\s*:\s*"([^"]*)"/g, (_, value) => {
+      texts.push(`地点：${unescapeJsonString(value)}`);
+      return "";
+    });
+    raw.replace(/"weather"\s*:\s*"([^"]*)"/g, (_, value) => {
+      texts.push(`天气：${unescapeJsonString(value)}`);
+      return "";
+    });
+    raw.replace(/"speaker"\s*:\s*"([^"]*)"[\s\S]{0,80}?"text"\s*:\s*"([^"]*)"/g, (_, speaker, line) => {
+      texts.push(`${unescapeJsonString(speaker)}：「${unescapeJsonString(line)}」`);
+      return "";
+    });
+    raw.replace(/"type"\s*:\s*"paragraph"[\s\S]{0,80}?"text"\s*:\s*"([^"]*)"/g, (_, value) => {
+      texts.push(unescapeJsonString(value));
+      return "";
+    });
+    return texts.join("\n\n") || raw.replace(/[{}\[\]",]/g, " ").replace(/\s+/g, " ").trim();
+  }
+}
+
+function storyToPlainText(story) {
+  const parts = [];
+  if (story?.env) {
+    parts.push(`时间：${story.env.time || ""} 地点：${story.env.place || ""} 天气：${story.env.weather || ""}`.trim());
+  }
+  (story?.blocks || []).forEach((block) => {
+    if (block.type === "dialogue") parts.push(`${block.speaker || "NPC"}：「${block.text || ""}」`);
+    else if (block.text) parts.push(block.text);
+  });
+  return parts.filter(Boolean).join("\n\n");
+}
+
+function collectDialogueBySpeaker(story) {
+  const map = {};
+  (story?.blocks || []).forEach((block) => {
+    if (block.type !== "dialogue" || !block.speaker || !block.text) return;
+    map[block.speaker] = [map[block.speaker], block.text].filter(Boolean).join(" ");
+  });
+  return map;
+}
+
+function isTooSimilarStory(nextText, previousText) {
+  const a = normalizeCompareText(nextText);
+  const b = normalizeCompareText(previousText);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const short = a.length < b.length ? a : b;
+  const long = a.length < b.length ? b : a;
+  if (short.length > 80 && long.includes(short.slice(0, Math.min(short.length, 220)))) return true;
+  const grams = new Set();
+  for (let i = 0; i < short.length - 5; i += 3) grams.add(short.slice(i, i + 6));
+  if (!grams.size) return false;
+  let same = 0;
+  grams.forEach((gram) => {
+    if (long.includes(gram)) same += 1;
+  });
+  return same / grams.size > 0.72;
+}
+
+function normalizeCompareText(text) {
+  return String(text || "")
+    .replace(/[，。！？；：、“”"「」『』\s]/g, "")
+    .replace(/时间.*?天气/g, "")
+    .trim();
+}
+
+function unescapeJsonString(value) {
+  try {
+    return JSON.parse(`"${String(value).replace(/"/g, '\\"')}"`);
+  } catch {
+    return value;
+  }
+}
+
+function updateStreamingText(eventId, text) {
+  const event = state.events.find((item) => item.id === eventId);
+  if (!event || event.status !== "loading") return;
+  event.streamText = text || "正在输入中……";
+  renderAll();
+}
+
+function parseApiJsonContent(content) {
+  const raw = String(content || "").trim();
+  if (!raw) throw new Error("API 返回内容为空。");
+  const withoutFence = raw
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+  try {
+    return JSON.parse(withoutFence);
+  } catch {
+    const start = withoutFence.indexOf("{");
+    const end = withoutFence.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      return JSON.parse(withoutFence.slice(start, end + 1));
+    }
+    throw new Error("API 返回内容不是可解析 JSON，请检查模型是否遵守输出格式。");
+  }
+}
+
+async function fetchWithTimeout(url, options = {}, timeout = 12000) {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeout);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+function formatGenerationError(error) {
+  if (error?.name === "AbortError") {
+    return "生成失败：API 请求超时。请检查网络、接口地址，或模型响应速度。";
+  }
+  const message = String(error?.message || error || "未知错误");
+  if (/401|Unauthorized/i.test(message)) return "生成失败：密钥无效或没有权限，请检查千问 API Key。";
+  if (/403|Forbidden/i.test(message)) return "生成失败：当前密钥没有访问该模型或工作空间的权限。";
+  if (/404|Not Found/i.test(message)) return "生成失败：API 地址或模型名称不存在，请确认千问兼容地址和模型 ID。";
+  if (/Failed to fetch|NetworkError|Load failed/i.test(message)) {
+    return "生成失败：浏览器无法连接 API。常见原因是接口跨域限制、网络不可达或 API 地址填写错误。";
+  }
+  if (/JSON|解析|format|格式/i.test(message)) {
+    return `生成失败：模型返回格式不符合剧情 JSON 结构。${message}`;
+  }
+  return `生成失败：${message}`;
+}
+
+function getApiTimeout() {
+  const debugTimeout = new URLSearchParams(window.location.search).get("apiTimeout");
+  const parsed = Number(debugTimeout);
+  return Number.isFinite(parsed) && parsed >= 500 ? parsed : 12000;
+}
+
+function getQuickApiTimeout() {
+  const debugTimeout = new URLSearchParams(window.location.search).get("quickApiTimeout");
+  const parsed = Number(debugTimeout);
+  return Number.isFinite(parsed) && parsed >= 500 ? parsed : 6500;
+}
+
+const QWEN_MODEL_CANDIDATES = [
+  "qwen-plus",
+  "qwen3.5-plus",
+  "qwen3-plus",
+  "qwen-turbo",
+  "qwen-max",
+  "qwen-long"
+];
+
+function isQwenUrl(apiUrl) {
+  return /aliyuncs\.com|dashscope|compatible-mode/i.test(apiUrl || "");
+}
+
+function normalizeApiUrl(apiUrl) {
+  const trimmed = String(apiUrl || "").trim();
+  if (!trimmed) return "";
+  const withoutTrailing = trimmed.replace(/\/+$/, "");
+  if (/\/chat\/completions$|\/responses$|\/models$/i.test(withoutTrailing)) {
+    return withoutTrailing.replace(/\/models$/i, "/chat/completions");
+  }
+  if (/\/compatible-mode\/v1$/i.test(withoutTrailing) || /\/v1$/i.test(withoutTrailing)) {
+    return `${withoutTrailing}/chat/completions`;
+  }
+  if (/aliyuncs\.com|dashscope/i.test(withoutTrailing)) {
+    return `${withoutTrailing}/compatible-mode/v1/chat/completions`;
+  }
+  return `${withoutTrailing}/chat/completions`;
+}
+
+function getModelsUrl(apiUrl) {
+  const trimmed = normalizeApiUrl(apiUrl);
+  if (!trimmed) return "";
+  try {
+    const url = new URL(trimmed);
+    url.pathname = url.pathname
+      .replace(/\/chat\/completions\/?$/, "/models")
+      .replace(/\/responses\/?$/, "/models");
+    if (!/\/models\/?$/.test(url.pathname)) {
+      url.pathname = url.pathname.replace(/\/$/, "") + "/models";
+    }
+    url.search = "";
+    return url.toString();
+  } catch {
+    return trimmed.replace(/\/chat\/completions\/?$/, "/models").replace(/\/responses\/?$/, "/models");
+  }
+}
+
+function applyQwenModelFallback(message = "模型拉取失败，已填入千问常用模型候选。") {
+  state.settings.apiModels = QWEN_MODEL_CANDIDATES;
+  if (!state.settings.apiModel || !state.settings.apiModels.includes(state.settings.apiModel)) {
+    state.settings.apiModel = "qwen-plus";
+    els.apiModel.value = state.settings.apiModel;
+  }
+  renderModelOptions();
+  saveState();
+  showApiStatus(message, "error");
+}
+
+function applyQwenPreset() {
+  syncApiFromInputs();
+  if (!state.settings.apiUrl || !isQwenUrl(state.settings.apiUrl)) {
+    els.apiUrl.value = QWEN_DEFAULT_URL;
+    state.settings.apiUrl = els.apiUrl.value;
+  }
+  state.settings.apiModels = QWEN_MODEL_CANDIDATES;
+  if (!state.settings.apiModel) {
+    state.settings.apiModel = "qwen-plus";
+    els.apiModel.value = state.settings.apiModel;
+  }
+  renderModelOptions();
+  saveState();
+  showApiStatus("已切换为千问兼容模式。填写千问 API Key 后可直接拉取模型或检验连接。", "neutral");
+}
+
+async function fetchAvailableModels() {
+  syncApiFromInputs();
+  if (!state.settings.apiUrl || !state.settings.apiKey) {
+    showApiStatus("请先填写 API URL 和密钥。", "error");
+    return;
+  }
+  showApiStatus("正在拉取模型...", "neutral");
+  try {
+    const response = await fetchWithTimeout(getModelsUrl(state.settings.apiUrl), {
+      headers: { Authorization: `Bearer ${state.settings.apiKey}` }
+    }, getQuickApiTimeout());
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    const models = (Array.isArray(data.data) ? data.data : [])
+      .map((item) => item.id || item.name)
+      .filter(Boolean);
+    if (!models.length) throw new Error("没有返回模型列表");
+    const qwenModels = models.filter((model) => /^qwen/i.test(model));
+    state.settings.apiModels = [...new Set([...(qwenModels.length ? qwenModels : models), ...QWEN_MODEL_CANDIDATES])].sort();
+    if (!state.settings.apiModel || !state.settings.apiModels.includes(state.settings.apiModel)) {
+      state.settings.apiModel = state.settings.apiModels.find((model) => model === "qwen-plus") || state.settings.apiModels[0];
+    }
+    els.apiModel.value = state.settings.apiModel;
+    renderModelOptions();
+    saveState();
+    showApiStatus(`已拉取 ${state.settings.apiModels.length} 个模型。`, "ok");
+  } catch (error) {
+    if (isQwenUrl(state.settings.apiUrl)) {
+      applyQwenModelFallback("模型拉取失败，已提供千问常用模型候选。请确认地址里的 WorkspaceId 和密钥。");
+    } else {
+      showApiStatus(`模型拉取失败：${formatGenerationError(error)}`, "error");
+    }
+  }
+}
+
+async function testApiConnection() {
+  syncApiFromInputs();
+  if (!state.settings.apiUrl || !state.settings.apiKey || !state.settings.apiModel) {
+    showApiStatus("请先填写 URL、密钥和模型。", "error");
+    return;
+  }
+  showApiStatus("正在检验连接和剧情格式...", "neutral");
+  try {
+    const response = await fetchWithTimeout(state.settings.apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${state.settings.apiKey}`
+      },
+      body: JSON.stringify({
+        model: state.settings.apiModel,
+        messages: [
+          {
+            role: "system",
+            content: "返回严格 JSON，不要 Markdown。结构必须是 {\"env\":{\"time\":\"傍晚\",\"place\":\"测试地点\",\"weather\":\"微风\"},\"blocks\":[{\"type\":\"paragraph\",\"text\":\"一句环境描写。\"}]}"
+          },
+          { role: "user", content: "剧情格式连接测试" }
+        ],
+        max_tokens: 180,
+        temperature: 0,
+        stream: false
+      })
+    }, getQuickApiTimeout());
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || data.output_text || "";
+    const parsed = parseApiJsonContent(content);
+    if (!parsed?.env || !Array.isArray(parsed?.blocks)) {
+      throw new Error("模型没有返回剧情 JSON 结构");
+    }
+    saveState();
+    showApiStatus("连接成功，剧情格式也可用。", "ok");
+  } catch (error) {
+    showApiStatus(`检验失败：${formatGenerationError(error)}`, "error");
+  }
+}
+
+function normalizeStory(story, previous, text, variant) {
+  const envFromText = extractEnvFromBlocks(story?.blocks || []);
+  const safeEnv = {
+    time: story?.env?.time || envFromText.time || previous.env.time || "傍晚",
+    place: story?.env?.place || envFromText.place || previous.env.place || "未命名的地点",
+    weather: story?.env?.weather || envFromText.weather || previous.env.weather || "微风"
+  };
+  const blocks = Array.isArray(story?.blocks) ? story.blocks : [];
+  const normalizedBlocks = [];
+  blocks.forEach((block) => {
+    if (block.type === "dialogue") {
+      const rawDialogueText = String(block.text || "");
+      if (/[A-Za-z][A-Za-z .'-]{0,30}[：:]\s*[“"「『]|[\u4e00-\u9fa5A-Za-z0-9·]{1,16}[：:]\s*[“"「『]/.test(rawDialogueText)) {
+        const mixedDialogue = splitParagraphAndDialogue(rawDialogueText, text, variant);
+        mixedDialogue.forEach((item) => normalizedBlocks.push(item));
+        return;
+      }
+      const cleaned = cleanDialogueText(block.text || "");
+      if (cleaned.aside) {
+        normalizedBlocks.push({
+          type: "paragraph",
+          text: sanitizeNoPlayerControl(cleaned.aside)
+        });
+      }
+      if (cleaned.line) {
+        normalizedBlocks.push({
+          type: "dialogue",
+          speaker: String(block.speaker || chooseNpc(text, variant).name),
+          text: sanitizeNoPlayerControl(cleaned.line)
+        });
+      }
+      return;
+    }
+    splitParagraphAndDialogue(block.text || "", text, variant).forEach((item) => {
+      normalizedBlocks.push(item);
+    });
+  });
+  const filteredBlocks = normalizedBlocks.filter((block) => block.text.trim());
+
+  if (!filteredBlocks.length) {
+    throw new Error("API 返回内容为空或格式不符合要求，请调整模型输出格式。");
+  }
+
+  return { env: safeEnv, blocks: filteredBlocks };
+}
+
+function splitParagraphAndDialogue(text, prompt, variant) {
+  const raw = stripInlineEnv(String(text || "").replace(/\s*\n+\s*/g, " ").trim());
+  if (!raw) return [];
+  const pattern = /([A-Za-z][A-Za-z .'-]{0,30}|[\u4e00-\u9fa5A-Za-z0-9·]{1,16})[：:]\s*[“"「『]([^”"」』]+)[”"」』]/g;
+  const blocks = [];
+  let last = 0;
+  let match;
+  while ((match = pattern.exec(raw))) {
+    const before = raw.slice(last, match.index).trim();
+    if (before) {
+      blocks.push({ type: "paragraph", text: sanitizeNoPlayerControl(before) });
+    }
+    blocks.push({
+      type: "dialogue",
+      speaker: cleanSpeakerName(match[1]) || chooseNpc(prompt, variant).name,
+      text: sanitizeNoPlayerControl(match[2].trim())
+    });
+    last = pattern.lastIndex;
+  }
+  const rest = raw.slice(last).trim();
+  if (rest) {
+    blocks.push({ type: "paragraph", text: sanitizeNoPlayerControl(rest) });
+  }
+  return blocks.length ? blocks : [{ type: "paragraph", text: sanitizeNoPlayerControl(raw) }];
+}
+
+function cleanSpeakerName(name) {
+  const raw = String(name || "").replace(/[，。！？!?、\s]+$/g, "").trim();
+  if (!raw) return "";
+  if (/^[A-Za-z][A-Za-z .'-]{1,30}$/.test(raw)) return raw.trim();
+  return raw
+    .replace(/^.*?(楼下|窗外|门外|身后|旁边|隔壁|远处|走廊尽头)/, "")
+    .replace(/^(的|那个|那名|一位|一个)/, "")
+    .slice(-10)
+    .trim();
+}
+
+function extractEnvFromBlocks(blocks) {
+  const text = (blocks || []).map((block) => block?.text || "").join(" ");
+  return {
+    time: text.match(/时间[：:]\s*([^ 地点天气。！？!?，,]+)/)?.[1] || "",
+    place: text.match(/地点[：:]\s*([^ 天气。！？!?，,]+)/)?.[1] || "",
+    weather: text.match(/天气[：:]\s*([^ 。！？!?，,]+)/)?.[1] || ""
+  };
+}
+
+function stripInlineEnv(text) {
+  return String(text || "")
+    .replace(/^\s*时间[：:]\s*[^ 地点天气。！？!?，,]+\s*地点[：:]\s*[^ 天气。！？!?，,]+\s*天气[：:]\s*[^ 。！？!?，,]+\s*/g, "")
+    .replace(/^\s*时间[：:]\s*[^。！？!?]*?(?=[\u4e00-\u9fa5A-Za-z])/g, "")
+    .trim();
+}
+
+function cleanDialogueText(text) {
+  let raw = String(text || "").replace(/\s*\n+\s*/g, " ").trim();
+  const quoted = raw.match(/[“"「『](.+?)[”"」』]/);
+  if (quoted) {
+    const line = quoted[1].trim();
+    const aside = raw.replace(quoted[0], "").replace(/[（）()]/g, "").trim();
+    return { line, aside };
+  }
+  const parts = raw
+    .split(/(?<=[。！？!?])\s*/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const actionPattern = /(低头|抬头|皱眉|微笑|转身|走|伸手|握住|看向|望向|沉默|心想|想起|意识到|觉得|感觉|叹了口气|垂下|攥紧|靠近|退后|站起|坐下)/;
+  const speechVerbs = /(说|说道|开口|低声|轻声|回答|问|提醒|喊|喃喃|冷声)/;
+  const dialogueParts = parts.filter((part) => !actionPattern.test(part) || speechVerbs.test(part));
+  const asideParts = parts.filter((part) => actionPattern.test(part) && !speechVerbs.test(part));
+  const speechSource = dialogueParts.length ? dialogueParts.join("") : raw;
+  const line = speechSource
+    .replace(/^(.*?(?:说|说道|开口|低声|轻声|回答|问|提醒|喊|喃喃|冷声)[：:])/, "")
+    .replace(/[“”"「」『』]/g, "")
+    .trim();
+  return {
+    line,
+    aside: asideParts.filter((part) => !dialogueParts.includes(part)).join("")
+  };
+}
+
+function sanitizeNoPlayerControl(text) {
+  const playerName = getPlayerProfile().name.trim();
+  const banned = [
+    /你(走|跑|伸手|点头|摇头|回答|说道|决定|选择|拿起|放下|攻击|亲吻|拥抱|转身|离开|进入)/g,
+    /你心想/g,
+    /你意识到/g
+  ];
+  let result = String(text).replace(/\s*\n+\s*/g, " ");
+  if (playerName) {
+    result = result.replaceAll(playerName, "你");
+  }
+  banned.forEach((pattern) => {
+    result = result.replace(pattern, "现场有人$1");
+  });
+  result = result.replace(/你(走|跑|伸手|点头|摇头|回答|说道|决定|选择|拿起|放下|攻击|亲吻|拥抱|转身|离开|进入)/g, "现场有人$1");
+  result = result.replace(/你心想/g, "现场没有替主控写出内心独白");
+  result = result.replace(/你意识到/g, "现场线索显示");
+  return result.trim();
+}
+
+function chooseNpc(text, variant) {
+  const savedNpcs = state.settings.npcs.filter((npc) => (npc.name || npc.detail || "").trim());
+  const ambientNpcs = [
+    { id: "ambient-neighbor", name: "热心邻居", gender: "未知", age: "三十岁上下", detail: "开朗话唠，爱做饭，容易关心刚认识的人。圆脸，面色红润，穿柔软的家居开衫。" },
+    { id: "ambient-witness", name: "谨慎旁观者", gender: "未知", age: "二十多岁", detail: "敏锐谨慎，说话前会先观察局势。短发，眼神清亮，深色外套。" },
+    { id: "ambient-guard", name: "值夜管理员", gender: "未知", age: "四十岁左右", detail: "谨慎克制，负责秩序，外冷内热，习惯把担心藏在严厉后面。肩背宽，制服整洁，眉间有浅纹。" },
+    { id: "ambient-stranger", name: "安静陌生人", gender: "未知", age: "未知", detail: "寡言克制，不轻易靠近别人。身形清瘦，衣领压得很低，动作很轻。" }
+  ];
+  const npcs = savedNpcs.length ? [...savedNpcs, ...ambientNpcs] : ambientNpcs;
+  const npc = npcs[(text.length + variant) % npcs.length];
+  return {
+    id: npc.id || "default-npc",
+    name: npc.name || "陌生人",
+    age: npc.age || "未知",
+    detail: npc.detail || "轮廓在光线里并不清晰，但注意力始终停在当前事件上。"
+  };
+}
+
+function getPresentNpcs(event) {
+  const speakers = [...new Set((event.story?.blocks || [])
+    .filter((block) => block.type === "dialogue" && block.speaker)
+    .map((block) => String(block.speaker).trim())
+    .filter(Boolean))];
+  if (!speakers.length) return [chooseNpc(event.prompt || "", event.variant || 0)];
+  return speakers.map((speaker, index) => {
+    const saved = state.settings.npcs.find((npc) => npc.name && speaker.includes(npc.name));
+    if (saved) return saved;
+    const picked = chooseNpc(`${event.prompt || ""}${speaker}`, (event.variant || 0) + index);
+    if (/邻居/.test(speaker)) {
+      return { ...picked, id: `speaker-${speaker}`, name: speaker, age: "三十岁上下", detail: "开朗话唠，热心，爱做饭，容易把关心藏在闲聊和食物里。面色红润，穿柔软的家居开衫。" };
+    }
+    if (/路人|旁观/.test(speaker)) {
+      return { ...picked, id: `speaker-${speaker}`, name: speaker, age: "未知", detail: "普通路人，心直口快，容易被糟糕环境惹得烦躁。衣着日常，神情不耐。" };
+    }
+    if (/管理员|保安|守夜/.test(speaker)) {
+      return { ...picked, id: `speaker-${speaker}`, name: speaker, age: "四十岁左右", detail: "谨慎克制，负责秩序，外冷内热。肩背宽，制服整洁，眉间有浅纹。" };
+    }
+    return { ...picked, id: `speaker-${speaker}`, name: speaker };
+  });
+}
+
+function buildRelationDescription(npc, impression) {
+  const profile = parseCharacterProfile(npc, 0);
+  if (profile.tone === "talkative") return `刚认识但愿意亲近，对你抱着热络好奇；${impression}`;
+  if (profile.tone === "gentle") return `保持温和距离，倾向先照顾你的处境；${impression}`;
+  if (profile.tone === "proud") return `互相试探中，不轻易示弱也不轻易信任；${impression}`;
+  if (profile.tone === "nervous") return `小心接触中，对你既好奇又不敢完全放松；${impression}`;
+  return `保持观察关系，态度会随你的下一步行动变化；${impression}`;
+}
+
+function pick(list, seed) {
+  return list[Math.abs(seed) % list.length];
+}
+
+function rebuildTimeline() {
+  const snapshots = [];
+  let snap = buildInitialSnapshot();
+  state.events.forEach((event) => {
+    if (event.type === "player") {
+      snap = applyPlayerEvent(snap, event);
+    } else if (event.type === "ai") {
+      snap = applyAiEvent(snap, event);
+    } else if (event.type === "memoryMerge") {
+      snap = applyMemoryMergeEvent(snap, event);
+    }
+    snapshots.push(clone(snap));
+  });
+  state.snapshots = snapshots;
+}
+
+function applyPlayerEvent(snapshot, event) {
+  const next = clone(snapshot);
+  next.seed += 1;
+  next.statuses = (next.statuses || []).map((person, index) => ({
+    ...person,
+    posture: describeResponsivePosture(person, event.text, next.env, index),
+    thought: buildThought(person, buildSceneCue(event.text, "", next.env), next.memories, next.seed + index),
+    impression: buildImpression(person, buildSceneCue(event.text, "", next.env), next.seed + index)
+  }));
+  compactMemories(next);
+  return next;
+}
+
+function applyAiEvent(snapshot, event) {
+  const next = clone(snapshot);
+  if (event.status === "loading" || event.status === "error") {
+    return next;
+  }
+  next.seed += 1;
+  next.env = event.story.env;
+  const storyText = getStoryPlainText(event.story);
+  const cue = buildSceneCue(event.prompt || "", storyText, next.env);
+  const speechByNpc = collectDialogueBySpeaker(event.story);
+  const previousStatuses = next.statuses || [];
+  const currentStatuses = [];
+  const npcs = getPresentNpcs(event).map((npc, index) => {
+    const existing = previousStatuses.find((person) => person.id === npc.id || person.name === npc.name);
+    return { ...npc, detail: npc.detail || existing?.detail || "", existing, offset: index };
+  });
+
+  npcs.forEach((npc) => {
+    const profile = parseCharacterProfile(npc, (event.variant || 0) + npc.offset);
+    const personalCue = [cue, speechByNpc[npc.name] || ""].filter(Boolean).join("，");
+    const statusSeed = (event.variant || 0) + npc.offset + next.seed;
+    const status = {
+      id: npc.id,
+      name: npc.name,
+      detail: npc.detail || npc.existing?.detail || "",
+      age: npc.age || npc.existing?.age || "未知",
+      profile,
+      appearance: buildDynamicAppearance({ ...npc, profile }, event.story.env, personalCue, statusSeed),
+      posture: describePosture(event.story.env, statusSeed, profile, personalCue),
+      thought: buildThought({ ...npc, profile }, personalCue, next.memories, statusSeed),
+      impression: buildImpression({ ...npc, profile }, personalCue, statusSeed)
+    };
+    currentStatuses.push(status);
+
+    const relation = next.relations.find((item) => item.id === npc.id || item.name === npc.name);
+    const delta = event.source === "directive" ? 1 : Math.max(1, Math.min(6, (event.prompt || "").length % 7));
+    if (relation) {
+      relation.affection = clamp(Number(relation.affection || 0) + delta - (event.variant ? 1 : 0), -100, 100);
+      relation.description = buildRelationDescription(npc, status.impression);
+    } else {
+      next.relations.push({
+        id: npc.id,
+        name: npc.name,
+        description: buildRelationDescription(npc, status.impression),
+        affection: delta
+      });
+    }
+  });
+  next.statuses = currentStatuses;
+  next.memories.instant.push({
+    id: `mem-${event.id}`,
+    sourceEventId: event.id,
+    text: summarizeRoundMemory(event, storyText, npcs)
+  });
+  compactMemories(next);
+  return next;
+}
+
+function applyMemoryMergeEvent(snapshot, event) {
+  const next = clone(snapshot);
+  const ids = new Set(event.memoryIds);
+  const selected = [
+    ...next.memories.instant.map((memory) => ({ ...memory, type: "instant" })),
+    ...next.memories.long.map((memory) => ({ ...memory, type: "long" }))
+  ].filter((memory) => ids.has(memory.id));
+  if (!selected.length) return next;
+
+  next.memories.instant = next.memories.instant.filter((memory) => !ids.has(memory.id));
+  next.memories.long = next.memories.long.filter((memory) => !ids.has(memory.id));
+  next.memories.long.push({
+    id: event.id,
+    sourceEventId: selected.at(-1).sourceEventId,
+    text: event.text
+  });
+  return next;
+}
+
+function summarizeRoundMemory(event, storyText, npcs) {
+  const action = compactText(normalizePlayerActionForMemory(event.prompt || "剧情发展指令"), 42);
+  const story = compactText(storyText, 70);
+  const npcNames = [...new Set((npcs || []).map((npc) => npc.name).filter(Boolean))].slice(0, 3).join("、") || "现场人物";
+  const reaction = compactText(extractDialogueSummary(event.story) || "现场人物根据本回合剧情调整了态度与行动。", 54);
+  return `本回合你${action}；剧情推进为${story}；${npcNames}的反应是${reaction}`;
+}
+
+function compactMemories(snapshot) {
+  while (snapshot.memories.instant.length >= 10) {
+    const batch = snapshot.memories.instant.splice(0, 10);
+    snapshot.memories.long.push({
+      id: `long-auto-${batch.map((item) => item.sourceEventId).join("-")}`,
+      sourceEventId: batch.at(-1).sourceEventId,
+      text: summarizeMemoryBatch(batch, "长期记忆")
+    });
+  }
+}
+
+function summarizeMemoryBatch(memories, prefix = "长期记忆") {
+  const text = memories.map((item) => item.text || "").join(" ");
+  const people = extractMemoryPeople(text);
+  const actionParts = [];
+  const plotParts = [];
+  const reactionParts = [];
+  memories.forEach((item) => {
+    const line = String(item.text || "");
+    const action = line.match(/本回合你(.+?)(?:；|$)/)?.[1];
+    const plot = line.match(/剧情推进为(.+?)(?:；|$)/)?.[1];
+    const reaction = line.match(/的反应是(.+)$/)?.[1];
+    if (action) actionParts.push(action);
+    if (plot) plotParts.push(plot);
+    if (reaction) reactionParts.push(reaction);
+  });
+  const actionCore = compactText(dedupeTextParts(actionParts).join("，"), 56);
+  const plotCore = compactText(dedupeTextParts(plotParts).join("，"), 76);
+  const reactionCore = compactText(dedupeTextParts(reactionParts).join("，"), 64);
+  const peopleText = people.length ? `涉及${people.join("、")}，` : "";
+  const core = [
+    actionCore ? `你的关键行动为${actionCore}` : "",
+    plotCore ? `剧情核心变化是${plotCore}` : "",
+    reactionCore ? `人物反应集中在${reactionCore}` : ""
+  ].filter(Boolean).join("；");
+  return `${prefix}：${peopleText}${core || compactText(text.replace(/[；;]/g, "，"), 160)}`;
+}
+
+function normalizePlayerActionForMemory(text) {
+  const clean = String(text || "")
+    .replace(/\s+/g, " ")
+    .replace(/^我(?=[要想在把拿走看问说打开进入离开寻找观察检查靠近推拉敲听])/g, "")
+    .replace(/^我/g, "")
+    .replace(/。$/g, "")
+    .trim();
+  if (!clean) return "推动了本回合行动";
+  if (/^(要|想|在|把|拿|走|看|问|说|打开|进入|离开|寻找|观察|检查|靠近|推|拉|敲|听)/.test(clean)) return clean;
+  return `进行了“${clean}”`;
+}
+
+function extractMemoryPeople(text) {
+  const blacklist = /本回合|剧情|推进|现场|人物|反应|长期记忆|即时记忆|整合记忆|主控|关系|记忆|关键行动|核心变化|集中/;
+  return [...new Set((String(text || "").match(/[A-Za-z][A-Za-z .'-]{1,30}|[\u4e00-\u9fa5]{2,6}/g) || [])
+    .filter((name) => !blacklist.test(name)))].slice(0, 4);
+}
+
+function dedupeTextParts(parts) {
+  const seen = new Set();
+  return parts
+    .map((part) => String(part || "").replace(/\s+/g, " ").trim())
+    .filter((part) => {
+      if (!part) return false;
+      const key = normalizeCompareText(part).slice(0, 36);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function compactText(text, limit) {
+  const clean = String(text || "")
+    .replace(/\s+/g, " ")
+    .replace(/时间：[^ 地点天气]+ 地点：[^ 天气]+ 天气：[^ ]+/g, "")
+    .trim();
+  return clean.length > limit ? `${clean.slice(0, limit)}…` : clean;
+}
+
+function extractDialogueSummary(story) {
+  const dialogues = (story?.blocks || [])
+    .filter((block) => block.type === "dialogue" && block.speaker && block.text)
+    .map((block) => `${block.speaker}说“${block.text}”`);
+  return dialogues.join("；");
+}
+
+function describePosture(env, variant, profile = {}, cue = "") {
+  const tone = profile.tone || "careful";
+  const place = env.place || "现场";
+  const focus = sceneFocus(cue);
+  const sets = {
+    talkative: [
+      `站在${place}靠近门口的位置，身体微微前倾，像是随时想搭话。`,
+      `一只手扶着旁边的桌沿，脚尖朝着你，肩膀放松得很自然。`,
+      `半倚在走道边，手里还攥着没放下的小物件，注意力一直往你这边飘。`
+    ],
+    gentle: [
+      `停在离你两三步远的位置，身体侧开半分，给你留出退路。`,
+      `双手轻轻交握在身前，站姿柔和，视线先落在你附近的环境上。`,
+      `靠近较亮的一侧站着，姿态安静，像是在等你先适应眼前局面。`
+    ],
+    proud: [
+      `站得笔直，肩线绷得很稳，视线从容地扫过${place}。`,
+      `侧身停在不远处，下颌微抬，姿势里带着一点不肯示弱的锋利。`,
+      `一手垂在身侧，另一只手压着衣角，像是不愿让情绪先露出来。`
+    ],
+    nervous: [
+      `贴着${place}边缘站着，手指不自觉收紧，又忍不住看向你。`,
+      `半步退在阴影旁，肩膀略缩，视线在你和周围动静之间来回移动。`,
+      `脚步停得很轻，像怕惊动什么，呼吸也跟着放慢了。`
+    ],
+    careful: [
+      `停在能看清你和${place}动静的位置，身体没有贸然靠近。`,
+      `微微侧身站着，视线压低，先把周围细节过了一遍。`,
+      `站在光线边缘，双手收得很稳，留意着${focus}。`
+    ],
+    irritable: [
+      `停在${place}边上，肩膀绷着，像是被糟糕的环境磨得没了耐心。`,
+      `一只手插在衣兜里，脚尖烦躁地点了点地，视线扫过走廊。`,
+      `站得不算近，脸色发沉，注意力被周围的动静牵着走。`
+    ]
+  };
+  const list = sets[tone] || sets.careful;
+  return list[Math.abs((cue || place).length + variant) % list.length];
+}
+
+function describeResponsivePosture(person, prompt, env, seed) {
+  const profile = person.profile || parseCharacterProfile(person, seed);
+  return describePosture(env, seed, profile, prompt);
+}
+
+function buildDynamicAppearance(npc, env, cue, variant) {
+  const profile = npc.profile || parseCharacterProfile(npc, variant);
+  const emotion = inferSceneEmotion(cue);
+  const expression = {
+    warm: ["眼里浮着笑意", "唇角压不住一点热络", "面色红润，神情很亮"],
+    tense: ["眉心轻轻蹙起", "唇线收紧，脸色比刚才淡了些", "眼神绷着一层警惕"],
+    curious: ["目光亮了一下", "眼尾带着明显的好奇", "神情像被什么细节勾住"],
+    guarded: ["视线克制地停了一瞬", "表情收得很稳", "神色没有完全放松"]
+  }[emotion];
+  const base = [
+    profile.hair,
+    profile.skin,
+    profile.face,
+    profile.clothes,
+    pick(expression, variant + cue.length)
+  ].filter(Boolean);
+  return base.slice(0, 4).join("，") + "。";
+}
+
+function extractAppearanceTraits(detail) {
+  const text = String(detail || "");
+  const hairMatch = text.match(/[^，。；、\s]{0,8}(?:黑|白|银|金|棕|褐|灰|红|粉|蓝|紫|栗|茶)[^，。；、\s]{0,8}(?:发|头发|卷发|卷毛|长发|短发|马尾|刘海)/);
+  const skinMatch = text.match(/(?:白皮肤|白皙|冷白皮|小麦肤|肤色[^，。；、\s]{0,8}|皮肤[^，。；、\s]{0,8})/);
+  const faceMatch = text.match(/(?:高鼻梁|鼻梁[^，。；、\s]{0,8}|眼睛[^，。；、\s]{0,8}|眉眼[^，。；、\s]{0,8}|眉间[^，。；、\s]{0,8}|薄唇|唇色[^，。；、\s]{0,8}|圆脸|脸[^，。；、\s]{0,8}|轮廓[^，。；、\s]{0,8}|肩背[^，。；、\s]{0,8})/);
+  const clothesMatch = text.match(/(?:穿着|身穿|衣着|制服|家居开衫|开衫|长裙|衬衫|外套|风衣|披肩|靴子|手套)[^，。；、\s]{0,14}/);
+  return {
+    hair: hairMatch?.[0] || "",
+    skin: skinMatch?.[0] || "",
+    face: faceMatch?.[0] || "",
+    clothes: clothesMatch?.[0] || ""
+  };
+}
+
+function buildThought(person, cue, memories, variant) {
+  const name = typeof person === "string" ? person : person.name;
+  const profile = typeof person === "string" ? parseCharacterProfile({ name }, variant) : (person.profile || parseCharacterProfile(person, variant));
+  const focus = sceneFocus(cue);
+  const memoryHint = sceneFocus((memories.instant.at(-1)?.text || memories.long.at(-1)?.text || "").replace(/^主控推动了剧情：/, ""));
+  const hooks = {
+    talkative: [
+      `我是不是该过去搭句话？${focus}听起来怪让人在意的，拿点热汤或者点心当借口应该不算突兀吧。可万一她不喜欢陌生人主动靠近呢？我别一开口就说个没完，先轻一点试试。`,
+      `刚搬来的邻居大晚上遇上这种动静，心里肯定也不踏实吧。我要不要把吃的分一点过去？不行不行，别太热情把人吓到，先找个自然的话头，看她愿不愿意接。`
+    ],
+    gentle: [
+      `我不能靠得太近，别让她觉得被逼着回应。${focus}已经够让人紧张了，我先把声音放轻一点，给她留出退路。要是她愿意听，我再提醒她小心。`,
+      `她现在未必需要我插手，可我也不能装作没看见。先确认周围安不安全，再用不冒犯的方式开口，别把好意变成压力。`
+    ],
+    proud: [
+      `我不能表现得太在意，尤其是${focus}这种事，一急就显得我先乱了。她看起来也不迟钝，随便试探反而会露怯。先稳住，话要说得像我本来就掌握局面。`,
+      `她这一出现倒是把局面搅动了。我要先看她下一步怎么做，再决定是顺势开口，还是把疑问压回去。别急，急了就不好看了。`
+    ],
+    nervous: [
+      `刚才${focus}，我总觉得哪里不太对。她不像故意找麻烦的人，可我也不能完全放心。我要不要开口？万一说错话更尴尬怎么办，还是先别靠太近。`,
+      `怎么连一点声响都变得这么明显……我是不是该提醒她小心？可我自己都慌成这样，别一开口反而把事情弄得更糟。`
+    ],
+    irritable: [
+      `烦死了，偏偏这种时候又碰上新邻居。她看起来不像故意添乱，可${focus}全搅在一起，谁心情能好？要不要提醒她一句？算了，别一上来就像找茬。`,
+      `我本来只想快点绕过这摊麻烦，现在又多了个新面孔。她倒不像难相处的人，可要是继续耗在这里，今晚肯定没完。先随口抱怨一句，看看她接不接话。`
+    ],
+    careful: [
+      `先别急着下结论。${focus}都得记住，她现在没有乱来，这点也要算进去。等线索和之前的事对上，我再决定要不要多说一点。`,
+      `不能只看表面，她没有立刻越界，这一点值得记下。可信任不能给得太快，我得再看她接下来是不是前后一致。`
+    ]
+  };
+  const list = hooks[profile.tone] || hooks.careful;
+  const thought = list[Math.abs(variant + focus.length) % list.length];
+  const memory = memoryHint && memoryHint !== "刚才的变化" ? ` 还有${memoryHint}这件事，我不能完全当没发生过。` : "";
+  return `${thought}${memory}`;
+}
+
+function buildImpression(person, cue, variant) {
+  const profile = typeof person === "string" ? parseCharacterProfile({ name: person }, variant) : (person.profile || parseCharacterProfile(person, variant));
+  const focus = sceneFocus(cue);
+  const impressions = {
+    talkative: [
+      `一个看起来还不错、应该能聊上几句的人；眼下正适合用食物或闲聊自然靠近。`,
+      `像是可以慢慢熟起来的新面孔，但还不确定你喜不喜欢被人热情靠近。`
+    ],
+    gentle: [
+      `让人想保持温和距离的人；看得出你正在处理眼前状况，所以不适合贸然逼近。`,
+      `并不讨厌你，反而有点担心你会被${focus}牵连，只是还不确定该不该插手。`
+    ],
+    proud: [
+      `不是可以随便糊弄的人；你让局势有了变化，因此值得认真看待，但暂时不能表现得太在意。`,
+      `有些难以判断的新变量，既不能轻视，也不想过早示弱。`
+    ],
+    nervous: [
+      `看起来不算危险，但你的出现让现场多了变数，需要再观察一会儿才敢放松。`,
+      `像是可以求助又不太敢靠近的人，印象还停在小心试探的阶段。`
+    ],
+    irritable: [
+      `一个刚搬来、暂时还看不出麻烦的新邻居；印象不坏，只是眼前这些破事让人没法好声好气。`,
+      `看起来还算讲理，但现在环境太糟，情绪很容易先被走廊里的动静带偏。`
+    ],
+    careful: [
+      `值得继续观察的人；你没有完全越界，但眼前这些动静让此人暂时保留判断。`,
+      `暂时不排斥你，不过信任还没有建立，需要看你接下来是否稳定。`
+    ]
+  };
+  const list = impressions[profile.tone] || impressions.careful;
+  return list[Math.abs(variant + focus.length) % list.length];
+}
+
+function parseCharacterProfile(person, seed = 0) {
+  if (person.profile) return person.profile;
+  const detail = String(person.detail || "");
+  const tone = inferPersonalityTone(detail, person.name || "", seed);
+  const traits = extractAppearanceTraits(detail);
+  const fallback = fallbackAppearance(tone, seed);
+  return {
+    tone,
+    hair: traits.hair || fallback.hair,
+    skin: traits.skin || fallback.skin,
+    face: traits.face || fallback.face,
+    clothes: traits.clothes || fallback.clothes
+  };
+}
+
+function inferPersonalityTone(detail, name, seed = 0) {
+  const text = `${detail} ${name}`;
+  if (/开朗|话唠|健谈|热情|外向|爱聊天|爱做饭|邻居/.test(text)) return "talkative";
+  if (/烦躁|不耐|心直口快|抱怨|脾气急/.test(text)) return "irritable";
+  if (/温柔|体贴|柔和|照顾|善良|耐心/.test(text)) return "gentle";
+  if (/傲慢|高傲|嘴硬|毒舌|强势|冷淡/.test(text)) return "proud";
+  if (/胆小|怯懦|不安|紧张|怕生|慌张/.test(text)) return "nervous";
+  if (/克制|冷静|沉稳|理性|谨慎|敏锐|观察|守序|正直/.test(text)) return "careful";
+  return ["talkative", "gentle", "careful", "nervous", "proud"][Math.abs((name.length || 1) + seed) % 5];
+}
+
+function fallbackAppearance(tone, seed) {
+  const sets = {
+    talkative: [
+      { hair: "蓬松的短发有点乱", skin: "面色红润", face: "圆润的脸上带着笑", clothes: "柔软开衫的袖口卷到手腕" },
+      { hair: "棕色发尾翘着一点", skin: "脸颊透着暖色", face: "眼睛很亮", clothes: "围裙边缘还沾着一点水汽" }
+    ],
+    gentle: [
+      { hair: "柔顺的黑发贴在耳侧", skin: "肤色干净温和", face: "眉眼舒展", clothes: "浅色外套整理得很平整" },
+      { hair: "低束的发尾垂在肩后", skin: "脸色柔和", face: "目光很安静", clothes: "针织衣料看起来很软" }
+    ],
+    proud: [
+      { hair: "利落的深色短发", skin: "肤色偏冷", face: "鼻梁挺直，唇线清晰", clothes: "外套扣得一丝不乱" },
+      { hair: "整齐的长发束在身后", skin: "脸色冷白", face: "眉眼锋利", clothes: "衣领压得很正" }
+    ],
+    nervous: [
+      { hair: "额前碎发微微散着", skin: "脸色有点发白", face: "眼神躲闪又忍不住看人", clothes: "外套袖口被攥出细褶" },
+      { hair: "软塌的刘海遮住一点眉眼", skin: "脸颊泛着紧张的浅红", face: "嘴唇抿得很紧", clothes: "衣摆被手指捏住" }
+    ],
+    irritable: [
+      { hair: "短发被风吹得有些乱", skin: "脸色被冷光衬得发灰", face: "眉头拧着，嘴角压得很低", clothes: "日常外套的拉链拉到一半" },
+      { hair: "额发乱糟糟地贴在额前", skin: "面色不太好看", face: "眼神里带着明显的不耐", clothes: "衣角沾着一点灰" }
+    ],
+    careful: [
+      { hair: "短发收拾得很利落", skin: "脸色平稳", face: "眼神清醒克制", clothes: "深色外套没有多余装饰" },
+      { hair: "发丝整齐地别在耳后", skin: "肤色在光里显得偏冷", face: "眉心压着一点思索", clothes: "衣袖干净，动作幅度很小" }
+    ]
+  };
+  const list = sets[tone] || sets.careful;
+  return list[Math.abs(seed) % list.length];
+}
+
+function inferSceneEmotion(cue) {
+  if (/笑|高兴|邀请|吃|饭|汤|邻居|聊天|轻松|温暖/.test(cue)) return "warm";
+  if (/危险|门缝|响|血|黑|暗|锁|防盗|紧张|害怕|失败/.test(cue)) return "tense";
+  if (/看|观察|发现|线索|奇怪|新|第一次/.test(cue)) return "curious";
+  return "guarded";
+}
+
+function trimCue(cue) {
+  const clean = String(cue || "").replace(/\s+/g, " ").replace(/^主控推动了剧情：/, "").trim();
+  return clean.slice(0, 26) || "刚才的变化";
+}
+
+function sceneFocus(cue) {
+  const text = String(cue || "");
+  const parts = [];
+  if (/搬进|新公寓|新邻居|公寓/.test(text)) parts.push("新邻居刚搬进来");
+  if (/牛肉|炖|饭|汤|吃|厨房/.test(text)) parts.push("热乎的饭菜正好能当作搭话借口");
+  if (/门缝|钥匙|防盗门|锁/.test(text)) parts.push("门口和锁边的异常动静");
+  if (/走廊|楼道|路人|感应灯/.test(text)) parts.push("走廊里忽明忽暗的动静");
+  if (/雨|风|冷|夜|暗/.test(text)) parts.push("屋外阴冷的天气");
+  if (/观察|看|发现|线索/.test(text)) parts.push("你正在留意现场细节");
+  if (!parts.length) return trimCue(text);
+  return [...new Set(parts)].slice(0, 2).join("，");
+}
+
+function buildSceneCue(prompt, storyText, env) {
+  return [prompt, storyText, env?.place, env?.weather].filter(Boolean).join("，");
+}
+
+function getStoryPlainText(story) {
+  return (story?.blocks || []).map((block) => block.text || "").join(" ");
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function askActionConfirm({ title, text, danger = true }) {
+  return new Promise((resolve) => {
+    pendingConfirm = resolve;
+    els.actionConfirmTitle.textContent = title;
+    els.actionConfirmText.textContent = text;
+    els.actionConfirmOk.classList.toggle("danger-button", danger);
+    els.actionConfirmOk.classList.toggle("send-button", !danger);
+    show(els.actionConfirmModal);
+  });
+}
+
+async function deleteEvent(id) {
+  const index = state.events.findIndex((event) => event.id === id);
+  if (index < 0) return;
+  state.events = state.events.slice(0, index);
+  rebuildTimeline();
+  renderAll();
+}
+
+async function rerollAi(id) {
+  const index = state.events.findIndex((event) => event.id === id);
+  const event = state.events[index];
+  if (!event || event.type !== "ai") return;
+  const baseEvents = state.events.slice(0, index);
+  const previousPlayer = [...baseEvents].reverse().find((item) => item.type === "player");
+  const prompt = previousPlayer?.text || event.prompt || "";
+  const avoidText = storyToPlainText(event.story || {});
+  const replacement = {
+    ...event,
+    id: uid("ai"),
+    prompt,
+    source: event.source,
+    variant: (event.variant || 0) + 1,
+    avoidText,
+    status: "loading",
+    story: {
+      env: { time: "生成中", place: "剧情引擎", weather: "等待" },
+      blocks: [{ type: "paragraph", text: "正在输入中……" }]
+    },
+    createdAt: Date.now()
+  };
+  delete replacement.streamText;
+  delete replacement.errorMessage;
+  state.events = [...baseEvents, replacement];
+  rebuildTimeline();
+  renderAll();
+  scheduleAiResolution(replacement.id);
+}
+
+async function savePlayerEdit(id, text) {
+  const index = state.events.findIndex((event) => event.id === id);
+  if (index < 0) return;
+  state.events[index].text = text.trim();
+  state.events = state.events.slice(0, index + 1);
+  const aiEvent = createPendingAiEvent({ source: "player", text: state.events[index].text });
+  state.events.push(aiEvent);
+  rebuildTimeline();
+  renderAll();
+  scheduleAiResolution(aiEvent.id);
+}
+
+async function saveAiEdit(id, text) {
+  const index = state.events.findIndex((event) => event.id === id);
+  if (index < 0) return;
+  const previous = index > 0 ? state.snapshots[index - 1] || buildInitialSnapshot() : buildInitialSnapshot();
+  state.events[index].story = normalizeStory(parseEditedAiText(text, state.events[index].story.env), previous, state.events[index].prompt || "", state.events[index].variant || 0);
+  state.events = state.events.slice(0, index + 1);
+  rebuildTimeline();
+  renderAll();
+}
+
+function parseEditedAiText(text, fallbackEnv) {
+  const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
+  const envLine = lines.find((line) => line.includes("时间：") && line.includes("地点：") && line.includes("天气："));
+  const env = envLine ? {
+    time: envLine.match(/时间：([^ ]+)/)?.[1] || fallbackEnv.time,
+    place: envLine.match(/地点：([^ ]+)/)?.[1] || fallbackEnv.place,
+    weather: envLine.match(/天气：([^ \]]+)/)?.[1] || fallbackEnv.weather
+  } : fallbackEnv;
+
+  const body = lines.filter((line) => !line.startsWith("---") && !line.includes("时间：") && !line.startsWith("[删除]"));
+  const blocks = body.flatMap((line) => {
+    const dialogue = line.match(/^\[对话方框 - (.+?)\]\s*"?(.+?)"?$/);
+    if (dialogue) {
+      const cleaned = cleanDialogueText(dialogue[2]);
+      return [{ type: "dialogue", speaker: dialogue[1], text: cleaned.line }];
+    }
+    return splitParagraphAndDialogue(line, "", 0);
+  });
+  return { env, blocks };
+}
+
+function formatAiForEdit(event) {
+  const body = event.story.blocks.map((block) => {
+    if (block.type === "dialogue") return `[对话方框 - ${block.speaker}] "${block.text}"`;
+    return block.text;
+  }).join("\n\n");
+  return `---美化信息条---\n[时间：${event.story.env.time} 地点：${event.story.env.place} 天气：${event.story.env.weather}]\n---剧情正文---\n${body}\n---按钮栏---\n[删除] [重说] [修改]`;
+}
+
+function openEdit(kind, id) {
+  const event = state.events.find((item) => item.id === id);
+  if (!event) return;
+  editContext = { kind, id };
+  els.editTitle.textContent = kind === "player" ? "修改玩家消息" : "修改 AI 输出";
+  els.editInput.value = kind === "player" ? event.text : formatAiForEdit(event);
+  show(els.editModal);
+  els.editInput.focus();
+}
+
+function show(el) {
+  el.hidden = false;
+  el.classList.remove("hidden");
+}
+
+function hide(el) {
+  el.classList.add("hidden");
+  el.hidden = true;
+}
+
+function setSidebarMode(mode) {
+  const alreadyOpen = els.sideDrawer.classList.contains("panel-open") && state.sidebarMode === mode;
+  state.sidebarMode = mode;
+  renderSidebar();
+  setSidebarOpen(true);
+  els.sideDrawer.classList.toggle("panel-open", !alreadyOpen);
+  saveState();
+}
+
+function setSidebarOpen(open) {
+  els.sideDrawer.classList.toggle("open", open);
+  els.drawerToggle.setAttribute("aria-expanded", String(open));
+  if (!open) {
+    els.sideDrawer.classList.remove("panel-open");
+    els.sideDrawer.style.removeProperty("--drag-x");
+  }
+}
+
+function setupDraggableSidebar() {
+  let startX = 0;
+  let currentX = 0;
+  let dragging = false;
+  let moved = false;
+
+  const openWidth = () => window.innerWidth <= 540 ? 96 : 104;
+  const closedPeek = () => window.innerWidth <= 540 ? 30 : 34;
+  const maxDrag = () => openWidth() - closedPeek();
+
+  const pointerX = (event) => event.touches?.[0]?.clientX ?? event.clientX ?? 0;
+
+  const begin = (event) => {
+    dragging = true;
+    moved = false;
+    startX = pointerX(event);
+    currentX = els.sideDrawer.classList.contains("open") ? maxDrag() : 0;
+    els.sideDrawer.classList.add("dragging");
+  };
+
+  const move = (event) => {
+    if (!dragging) return;
+    const delta = pointerX(event) - startX;
+    const next = clamp(currentX + delta, 0, maxDrag());
+    if (Math.abs(delta) > 4) moved = true;
+    els.sideDrawer.style.setProperty("--drag-x", `${next}px`);
+    event.preventDefault();
+  };
+
+  const end = () => {
+    if (!dragging) return;
+    dragging = false;
+    els.sideDrawer.classList.remove("dragging");
+    const value = Number.parseFloat(els.sideDrawer.style.getPropertyValue("--drag-x")) || 0;
+    if (!moved) {
+      setSidebarOpen(!els.sideDrawer.classList.contains("open"));
+      return;
+    }
+    setSidebarOpen(value > maxDrag() * 0.45);
+    els.sideDrawer.style.removeProperty("--drag-x");
+  };
+
+  els.drawerToggle.addEventListener("pointerdown", begin);
+  window.addEventListener("pointermove", move, { passive: false });
+  window.addEventListener("pointerup", end);
+  window.addEventListener("pointercancel", end);
+
+  els.drawerToggle.addEventListener("touchstart", begin, { passive: true });
+  window.addEventListener("touchmove", move, { passive: false });
+  window.addEventListener("touchend", end);
+  window.addEventListener("touchcancel", end);
+}
+
+function bindEvents() {
+  els.inputForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const text = els.playerInput.value;
+    els.playerInput.value = "";
+    await submitPlayerText(text);
+  });
+
+  els.playerInput.addEventListener("input", () => {
+    els.playerInput.style.height = "auto";
+    els.playerInput.style.height = `${Math.min(160, els.playerInput.scrollHeight)}px`;
+  });
+
+  els.chatLog.addEventListener("click", async (event) => {
+    if (els.sideDrawer.classList.contains("panel-open")) {
+      els.sideDrawer.classList.remove("panel-open");
+    }
+    const button = event.target.closest("button[data-action]");
+    if (!button) return;
+    const id = button.dataset.id;
+    const action = button.dataset.action;
+    if (action === "delete-player" || action === "delete-ai") {
+      const ok = await askActionConfirm({
+        title: "确认删除",
+        text: "删除后，这条消息之后的剧情、记忆、人物状态和关系都会一起回溯。"
+      });
+      if (ok) await deleteEvent(id);
+    }
+    if (action === "reroll-ai") {
+      const ok = await askActionConfirm({
+        title: "确认重说",
+        text: "重说会根据上一条有效玩家消息重新生成此处之后的剧情，并同步刷新记忆和侧边信息。",
+        danger: false
+      });
+      if (ok) await rerollAi(id);
+    }
+    if (action === "edit-player") openEdit("player", id);
+    if (action === "edit-ai") openEdit("ai", id);
+  });
+
+  els.directiveButton.addEventListener("click", () => show(els.directiveModal));
+  els.directiveCancel.addEventListener("click", () => hide(els.directiveModal));
+  els.directiveSend.addEventListener("click", async () => {
+    const text = els.directiveInput.value;
+    els.directiveInput.value = "";
+    hide(els.directiveModal);
+    await submitDirective(text);
+  });
+
+  setupDraggableSidebar();
+  els.statusModeButton.addEventListener("click", () => setSidebarMode("status"));
+  els.relationModeButton.addEventListener("click", () => setSidebarMode("relation"));
+  els.fullscreenButton.addEventListener("click", async () => {
+    const root = document.documentElement;
+    try {
+      if (!document.fullscreenElement && root.requestFullscreen) {
+        await root.requestFullscreen();
+        els.fullscreenButton.textContent = "退出";
+      } else if (document.exitFullscreen) {
+        await document.exitFullscreen();
+        els.fullscreenButton.textContent = "全屏";
+      }
+    } catch {
+      els.fullscreenButton.textContent = "全屏";
+    }
+  });
+  document.addEventListener("fullscreenchange", () => {
+    els.fullscreenButton.textContent = document.fullscreenElement ? "退出" : "全屏";
+  });
+  els.memoryButton.addEventListener("click", () => {
+    renderMemoryPage();
+    show(els.memoryPage);
+  });
+  els.homeButton.addEventListener("click", () => {
+    renderHome();
+    show(els.homePage);
+  });
+
+  document.querySelectorAll("[data-close-page]").forEach((button) => {
+    button.addEventListener("click", () => hide(document.getElementById(button.dataset.closePage)));
+  });
+
+  els.memoryFilter.addEventListener("change", renderMemoryPage);
+  els.memoryList.addEventListener("change", (event) => {
+    const id = event.target.dataset.memoryId;
+    if (!id) return;
+    if (event.target.checked) state.selectedMemories.push(id);
+    else state.selectedMemories = state.selectedMemories.filter((item) => item !== id);
+    saveState();
+  });
+
+  els.mergeMemoryButton.addEventListener("click", mergeSelectedMemories);
+  els.addNpcButton.addEventListener("click", () => {
+    syncAllSettingsFromInputs();
+    state.settings.npcs.push({ id: uid("npc"), name: "", gender: "", age: "", detail: "" });
+    renderHome();
+    saveState();
+  });
+
+  els.npcList.addEventListener("input", (event) => {
+    const card = event.target.closest(".npc-card");
+    const field = event.target.dataset.npcField;
+    if (!card || !field) return;
+    const npc = state.settings.npcs.find((item) => item.id === card.dataset.id);
+    if (npc) npc[field] = event.target.value;
+    saveState();
+  });
+
+  els.npcList.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-action='remove-npc']");
+    if (!button) return;
+    syncAllSettingsFromInputs();
+    state.settings.npcs = state.settings.npcs.filter((npc) => npc.id !== button.dataset.id);
+    rebuildTimeline();
+    renderAll();
+  });
+
+  els.saveHomeButton.addEventListener("click", () => {
+    saveSection("all");
+    showApiStatus("全部设置已保存。", "ok");
+  });
+
+  els.saveWorldButton.addEventListener("click", () => saveSection("world"));
+  els.saveCharacterButton.addEventListener("click", () => saveSection("character"));
+  els.saveApiButton.addEventListener("click", () => saveSection("api"));
+  els.qwenPresetButton.addEventListener("click", applyQwenPreset);
+  els.fetchModelsButton.addEventListener("click", fetchAvailableModels);
+  els.testApiButton.addEventListener("click", testApiConnection);
+
+  [els.worldSetting, els.playerName, els.playerGender, els.playerAge, els.playerDetail, els.apiUrl, els.apiKey, els.apiModel].forEach((input) => {
+    input.addEventListener("change", () => {
+      syncAllSettingsFromInputs();
+      saveState();
+    });
+  });
+
+  els.resetButton.addEventListener("click", () => show(els.confirmModal));
+  els.resetCancel.addEventListener("click", () => hide(els.confirmModal));
+  els.resetConfirm.addEventListener("click", () => {
+    state = clone(defaultState);
+    localStorage.removeItem(STORAGE_KEY);
+    hide(els.confirmModal);
+    renderAll();
+  });
+
+  els.actionConfirmCancel.addEventListener("click", () => {
+    hide(els.actionConfirmModal);
+    pendingConfirm?.(false);
+    pendingConfirm = null;
+  });
+
+  els.actionConfirmOk.addEventListener("click", () => {
+    hide(els.actionConfirmModal);
+    pendingConfirm?.(true);
+    pendingConfirm = null;
+  });
+
+  els.editCancel.addEventListener("click", () => hide(els.editModal));
+  els.editSave.addEventListener("click", async () => {
+    const text = els.editInput.value;
+    hide(els.editModal);
+    if (!editContext || !text.trim()) return;
+    if (editContext.kind === "player") await savePlayerEdit(editContext.id, text);
+    else await saveAiEdit(editContext.id, text);
+    editContext = null;
+  });
+}
+
+async function mergeSelectedMemories() {
+  const snap = latestSnapshot();
+  const selected = [
+    ...snap.memories.instant.map((memory) => ({ ...memory, type: "instant" })),
+    ...snap.memories.long.map((memory) => ({ ...memory, type: "long" }))
+  ].filter((memory) => state.selectedMemories.includes(memory.id));
+  if (!selected.length) {
+    memoryNotice = "请先勾选要整合的记忆。";
+    renderMemoryPage();
+    return;
+  }
+
+  const originalLabel = els.mergeMemoryButton.textContent;
+  els.mergeMemoryButton.disabled = true;
+  els.mergeMemoryButton.textContent = "整合中";
+  memoryNotice = "正在让 AI 提炼勾选记忆...";
+  renderMemoryPage();
+  try {
+    const merged = await generateMergedMemoryWithApi(selected);
+    state.events.push({
+      id: uid("long"),
+      type: "memoryMerge",
+      memoryIds: selected.map((item) => item.id),
+      text: `整合记忆：${merged}`,
+      createdAt: Date.now()
+    });
+    state.selectedMemories = [];
+    memoryNotice = "已整合为一条新的长期记忆。";
+    rebuildTimeline();
+    renderAll();
+  } catch (error) {
+    memoryNotice = `整合失败：${formatGenerationError(error)}`;
+    renderMemoryPage();
+  } finally {
+    els.mergeMemoryButton.disabled = false;
+    els.mergeMemoryButton.textContent = originalLabel;
+  }
+}
+
+window.addEventListener("beforeunload", saveState);
+
+rebuildTimeline();
+bindEvents();
+renderAll();
+
+</script>
+</body>
+</html>

@@ -803,12 +803,16 @@ function migrateState(next) {
   next.snapshots = Array.isArray(next.snapshots) ? next.snapshots : [];
   next.selectedMemories = Array.isArray(next.selectedMemories) ? next.selectedMemories : [];
   const originalLength = next.events.length;
-  next.events = next.events.filter((event) => !isLegacyLocalFallbackEvent(event));
+  next.events = next.events.filter((event) => !isLegacyLocalFallbackEvent(event) && !isStaleLoadingEvent(event));
   if (next.events.length !== originalLength) {
     next.snapshots = [];
     next.selectedMemories = [];
   }
   return next;
+}
+
+function isStaleLoadingEvent(event) {
+  return event?.type === "ai" && event.status === "loading";
 }
 
 function isLegacyLocalFallbackEvent(event) {
@@ -1203,20 +1207,22 @@ async function resolveAiEvent(id) {
   const loadingStartedAt = Date.now();
   try {
     let story = await generateStory({
-      source: event.source,
-      text: event.prompt || "",
-      previous,
-      variant: event.variant || 0,
-      eventId: id
-    });
-    if (event.avoidText && isTooSimilarStory(storyToPlainText(story), event.avoidText)) {
-      story = await generateStory({
         source: event.source,
         text: event.prompt || "",
         previous,
-        variant: (event.variant || 0) + 101,
-        eventId: id
+        variant: event.variant || 0,
+        eventId: id,
+        fixedEnv: event.fixedEnv
       });
+    if (event.avoidText && isTooSimilarStory(storyToPlainText(story), event.avoidText)) {
+      story = await generateStory({
+          source: event.source,
+          text: event.prompt || "",
+          previous,
+          variant: (event.variant || 0) + 101,
+          eventId: id,
+          fixedEnv: event.fixedEnv
+        });
       if (isTooSimilarStory(storyToPlainText(story), event.avoidText)) {
         throw new Error("重说失败：模型返回内容与上一版过于相似，请再次点击重说或提高模型随机性。");
       }
@@ -1230,7 +1236,7 @@ async function resolveAiEvent(id) {
     event.status = "error";
     event.errorMessage = formatGenerationError(error);
     event.story = {
-      env: { time: "生成失败", place: "API 连接", weather: "错误" },
+      env: event.fixedEnv || { time: "生成失败", place: "API 连接", weather: "错误" },
       blocks: [{ type: "paragraph", text: event.errorMessage }]
     };
   }
@@ -1244,14 +1250,14 @@ function keepTypingVisible(startedAt, minimum = 850) {
   return new Promise((resolve) => window.setTimeout(resolve, rest));
 }
 
-async function generateStory({ source, text, previous, variant, eventId }) {
+async function generateStory({ source, text, previous, variant, eventId, fixedEnv }) {
   syncAllSettingsFromInputs();
   saveState();
   if (!state.settings.apiUrl || !state.settings.apiKey || !state.settings.apiModel) {
     throw new Error("请先在主页设置里填写 API URL、密钥和模型，并保存后再生成剧情。");
   }
   const event = state.events.find((item) => item.id === eventId);
-  return await generateWithApi({ source, text, previous, variant, eventId, avoidText: event?.avoidText || "" });
+  return await generateWithApi({ source, text, previous, variant, eventId, avoidText: event?.avoidText || "", fixedEnv });
 }
 
 function ensureApiReady() {
@@ -1262,7 +1268,7 @@ function ensureApiReady() {
   }
 }
 
-async function generateWithApi({ source, text, previous, variant, eventId, avoidText = "" }) {
+async function generateWithApi({ source, text, previous, variant, eventId, avoidText = "", fixedEnv }) {
   const systemPrompt = [
     "【人物状态栏最高优先级】本回合必须返回 statuses 数组，数组只包含当前在场人物，不保留离场人物。每个人必须包含 name、age、appearance、posture、thought、impression 六项。",
     "【状态栏实时更新】appearance/posture/thought/impression 必须根据本回合剧情、双方距离、人物动作、氛围和情绪全新撰写，严禁照抄上一回合，严禁连续多回合完全相同，严禁固定模板。",
@@ -1283,7 +1289,8 @@ async function generateWithApi({ source, text, previous, variant, eventId, avoid
     "禁止在正文或人物状态里暴露生成逻辑、设定提炼、系统规则、模型限制等 AI 感文字。",
     "如果出现人物说话，必须单独使用 dialogue 块；paragraph 里不得混入引号台词，也不得把台词和旁白挤在同一段。",
     "禁止在 paragraph 正文里写“时间：地点：天气：”这种信息条内容；环境信息只能放在 env 字段。",
-    "重说时必须生成明显不同的新版本：更换至少两个环境细节、一个 NPC 动作、主要台词措辞和剧情推进方向；不能只替换同义词，不能与上一版大差不差。",
+    fixedEnv ? `本次是重说：env.time、env.place、env.weather 必须原样返回 ${JSON.stringify(fixedEnv)}，禁止改动时间、地点、天气；只重写 blocks 剧情文本、statuses、relations、memory。` : "",
+    fixedEnv ? "重说时必须生成明显不同的新版本：更换剧情细节、NPC 动作、主要台词措辞和剧情推进方向；不能只替换同义词，不能与上一版大差不差；但时间、地点、天气必须保持不变。" : "重说时必须生成明显不同的新版本：更换至少两个环境细节、一个 NPC 动作、主要台词措辞和剧情推进方向；不能只替换同义词，不能与上一版大差不差。",
     "世界设定是最高优先级硬规则：所有场景、人物、行为、心理、社会规则、时代背景、势力关系、叙事尺度、对话风格都必须 100% 遵循世界设定原文，禁止私自修改、增删、篡改或混搭无关题材、时代、规则。",
     "必须理解设定并以设定为圆心自然发展叙事世界，不要生硬复述设定，但任何剧情推进都不能与设定冲突。",
     "如果主要 NPC 出场，必须参照其人物设定里的性格、思维方式、行事逻辑和关系背景发展；禁止死套固定模板，禁止每回合机械重复设定，必须结合当前剧情和记忆自然演化。",
@@ -1300,23 +1307,26 @@ async function generateWithApi({ source, text, previous, variant, eventId, avoid
     avoidText ? `上一版剧情摘要，重说时必须避开这些内容和措辞：${avoidText.slice(0, 900)}` : ""
   ].join("\n");
 
+  const messages = [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: text }
+  ];
+  const requestBody = {
+    model: state.settings.apiModel,
+    messages,
+    temperature: variant ? 0.95 : 0.75,
+    presence_penalty: variant ? 0.8 : 0.2,
+    frequency_penalty: variant ? 0.7 : 0.1,
+    stream: true
+  };
+
   const response = await fetchWithTimeout(state.settings.apiUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${state.settings.apiKey}`
     },
-    body: JSON.stringify({
-      model: state.settings.apiModel,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: text }
-      ],
-      temperature: variant ? 0.95 : 0.75,
-      presence_penalty: variant ? 0.8 : 0.2,
-      frequency_penalty: variant ? 0.7 : 0.1,
-      stream: true
-    })
+    body: JSON.stringify(requestBody)
   }, getApiTimeout());
 
   if (!response.ok) await throwApiHttpError(response);
@@ -1326,11 +1336,41 @@ async function generateWithApi({ source, text, previous, variant, eventId, avoid
     content = await readOpenAiStream(response, eventId);
   } else {
     const data = await response.json();
-    content = data.choices?.[0]?.message?.content || data.output_text || "";
+    content = extractResponseMessage(data);
     updateStreamingText(eventId, makeStreamingPreview(content) || "正在整理剧情格式……");
   }
+  if (!String(content || "").trim() || looksLikeIncompleteJson(content)) {
+    content = await retryWithoutStream(requestBody, eventId);
+  }
   const parsed = parseApiJsonContent(content);
-  return normalizeStory(parsed, previous, text, variant);
+  return normalizeStory(parsed, previous, text, variant, fixedEnv);
+}
+
+async function retryWithoutStream(requestBody, eventId) {
+  updateStreamingText(eventId, "流式返回为空，正在重新获取完整剧情……");
+  const response = await fetchWithTimeout(state.settings.apiUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${state.settings.apiKey}`
+    },
+    body: JSON.stringify({ ...requestBody, stream: false })
+  }, getApiTimeout());
+  if (!response.ok) await throwApiHttpError(response);
+  const data = await response.json();
+  const content = extractResponseMessage(data);
+  updateStreamingText(eventId, makeStreamingPreview(content) || "正在整理剧情格式……");
+  return content;
+}
+
+function extractResponseMessage(data) {
+  return data?.choices?.[0]?.message?.content
+    || data?.choices?.[0]?.delta?.content
+    || data?.output_text
+    || data?.output?.text
+    || data?.output?.content
+    || data?.output?.choices?.[0]?.message?.content
+    || "";
 }
 
 async function generateMergedMemoryWithApi(selected) {
@@ -1389,10 +1429,7 @@ async function readOpenAiStream(response, eventId) {
     if (!payload || payload === "[DONE]") return;
     try {
       const json = JSON.parse(payload);
-      const delta = json.choices?.[0]?.delta?.content
-        || json.choices?.[0]?.message?.content
-        || json.output_text
-        || "";
+      const delta = extractStreamDelta(json);
       if (delta) {
         content += delta;
         updateStreamingText(eventId, makeStreamingPreview(content));
@@ -1402,7 +1439,21 @@ async function readOpenAiStream(response, eventId) {
     }
   };
   while (true) {
-    const { value, done } = await reader.read();
+    let chunk;
+    try {
+      chunk = await readStreamChunkWithTimeout(reader, 45000);
+    } catch (error) {
+      if (content.trim()) {
+        try {
+          await reader.cancel();
+        } catch {
+          // The stream may already be closed by the provider.
+        }
+        break;
+      }
+      throw error;
+    }
+    const { value, done } = chunk;
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
     const lines = buffer.split(/\r?\n/);
@@ -1414,9 +1465,31 @@ async function readOpenAiStream(response, eventId) {
   return content;
 }
 
+function readStreamChunkWithTimeout(reader, timeout) {
+  let timer = 0;
+  return Promise.race([
+    reader.read(),
+    new Promise((_, reject) => {
+      timer = window.setTimeout(() => reject(new Error("API 流式响应中断：长时间没有继续返回内容。")), timeout);
+    })
+  ]).finally(() => window.clearTimeout(timer));
+}
+
+function extractStreamDelta(json) {
+  const choice = json?.choices?.[0] || json?.output?.choices?.[0] || {};
+  return choice.delta?.content
+    || choice.message?.content
+    || json?.output_text
+    || json?.output?.text
+    || json?.output?.content
+    || json?.text
+    || "";
+}
+
 function makeStreamingPreview(content) {
   const raw = String(content || "").trim();
   if (!raw) return "";
+  if (looksLikeIncompleteJson(raw)) return "正在输入中……";
   try {
     const parsed = parseApiJsonContent(raw);
     return storyBodyPlainText(parsed);
@@ -1432,8 +1505,34 @@ function makeStreamingPreview(content) {
     });
     return texts
       .filter((item) => !/^(时间|地点|天气|鏃堕棿|鍦扮偣|澶╂皵)/.test(item))
-      .join("\n\n") || raw.replace(/[{}\[\]",]/g, " ").replace(/\s+/g, " ").trim();
+      .join("\n\n") || (/^\s*[\[{]|"env"|"blocks"|"statuses"|"relations"|"memory"/.test(raw) ? "正在输入中……" : raw.replace(/[{}\[\]",]/g, " ").replace(/\s+/g, " ").trim());
   }
+}
+
+function looksLikeIncompleteJson(raw) {
+  const text = String(raw || "").trim();
+  if (!/^\s*[\[{]/.test(text) && !/"env"|"blocks"|"statuses"|"relations"|"memory"/.test(text)) return false;
+  let depth = 0;
+  let inString = false;
+  let escaping = false;
+  for (const char of text) {
+    if (escaping) {
+      escaping = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaping = true;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (char === "{" || char === "[") depth += 1;
+    if (char === "}" || char === "]") depth -= 1;
+  }
+  return inString || depth > 0;
 }
 
 function storyToPlainText(story) {
@@ -1514,15 +1613,69 @@ function parseApiJsonContent(content) {
     .replace(/\s*```$/i, "")
     .trim();
   try {
-    return JSON.parse(withoutFence);
+    return unwrapApiStoryPayload(JSON.parse(withoutFence));
   } catch {
     const start = withoutFence.indexOf("{");
     const end = withoutFence.lastIndexOf("}");
     if (start >= 0 && end > start) {
-      return JSON.parse(withoutFence.slice(start, end + 1));
+      try {
+        return unwrapApiStoryPayload(JSON.parse(withoutFence.slice(start, end + 1)));
+      } catch {
+        // Fall through to text repair below.
+      }
     }
+    const repaired = parseTextResponseToStory(withoutFence);
+    if (repaired.blocks.length) return repaired;
     throw new Error("API 返回内容不是可解析 JSON，请检查模型是否遵守输出格式。");
   }
+}
+
+function unwrapApiStoryPayload(payload) {
+  if (!payload || typeof payload !== "object") return payload;
+  const nestedText = payload.choices?.[0]?.message?.content
+    || payload.choices?.[0]?.delta?.content
+    || payload.output_text
+    || payload.output?.text
+    || payload.output?.content
+    || payload.output?.choices?.[0]?.message?.content;
+  if (nestedText && typeof nestedText === "string") {
+    return parseApiJsonContent(nestedText);
+  }
+  if (payload.story && typeof payload.story === "object") return payload.story;
+  if (!payload.blocks && typeof payload.content === "string") {
+    return parseApiJsonContent(payload.content);
+  }
+  return payload;
+}
+
+function parseTextResponseToStory(text) {
+  const clean = String(text || "")
+    .replace(/^```(?:json|text|markdown)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+  if (!clean) return { blocks: [] };
+  const lines = clean
+    .split(/\n{2,}|\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !/^[-—]*\s*(美化信息条|剧情正文|按钮栏)\s*[-—]*$/i.test(line))
+    .filter((line) => !/^\[?\s*时间[：:].*地点[：:].*天气[：:]/.test(line))
+    .filter((line) => !/^[-—]{2,}$/.test(line))
+    .filter((line) => !/^\[?(删除|重说|修改)\]?/.test(line));
+  const blocks = [];
+  lines.forEach((line) => {
+    const dialogueBox = line.match(/^\[?对话方框\s*-\s*(.+?)\]?\s*["“「『]?(.+?)["”」』]?$/);
+    if (dialogueBox) {
+      blocks.push({
+        type: "dialogue",
+        speaker: cleanSpeakerName(dialogueBox[1]) || dialogueBox[1].trim(),
+        text: dialogueBox[2].trim()
+      });
+      return;
+    }
+    splitParagraphAndDialogue(line, "", 0).forEach((block) => blocks.push(block));
+  });
+  return { blocks };
 }
 
 async function fetchWithTimeout(url, options = {}, timeout = 12000) {
@@ -1740,12 +1893,12 @@ async function testApiConnection() {
   }
 }
 
-function normalizeStory(story, previous, text, variant) {
+function normalizeStory(story, previous, text, variant, fixedEnv) {
   const envFromText = extractEnvFromBlocks(story?.blocks || []);
   const safeEnv = {
-    time: story?.env?.time || envFromText.time || previous.env.time || "傍晚",
-    place: story?.env?.place || envFromText.place || previous.env.place || "未命名的地点",
-    weather: story?.env?.weather || envFromText.weather || previous.env.weather || "微风"
+    time: fixedEnv?.time || story?.env?.time || envFromText.time || previous.env.time || "傍晚",
+    place: fixedEnv?.place || story?.env?.place || envFromText.place || previous.env.place || "未命名的地点",
+    weather: fixedEnv?.weather || story?.env?.weather || envFromText.weather || previous.env.weather || "微风"
   };
   const blocks = Array.isArray(story?.blocks) ? story.blocks : [];
   const normalizedBlocks = [];
@@ -2549,16 +2702,26 @@ async function rerollAi(id) {
   const previousPlayer = [...baseEvents].reverse().find((item) => item.type === "player");
   const prompt = previousPlayer?.text || event.prompt || "";
   const avoidText = event.status === "done" ? storyToPlainText(event.story || {}) : "";
+  const previousSnapshot = index > 0 ? state.snapshots[index - 1] || buildInitialSnapshot() : buildInitialSnapshot();
+  const candidateEnv = event.fixedEnv || event.story?.env;
+  const fixedEnv = clone(isFailureEnv(candidateEnv) ? previousSnapshot.env : (candidateEnv || previousSnapshot.env || buildInitialSnapshot().env));
   const replacement = createPendingAiEvent({
     source: event.source || (previousPlayer ? "player" : "directive"),
     text: prompt,
     variant: (event.variant || 0) + 1
   });
   replacement.avoidText = avoidText;
+  replacement.fixedEnv = fixedEnv;
+  replacement.story.env = fixedEnv;
   state.events = [...baseEvents, replacement];
   rebuildTimeline();
   renderAll();
   scheduleAiResolution(replacement.id);
+}
+
+function isFailureEnv(env) {
+  if (!env) return false;
+  return env.time === "生成失败" || env.place === "API 连接" || env.weather === "错误";
 }
 
 async function savePlayerEdit(id, text) {
@@ -2934,4 +3097,6 @@ renderAll();
 </script>
 </body>
 </html>
+
+
 

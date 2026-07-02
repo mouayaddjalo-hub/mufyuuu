@@ -127,6 +127,13 @@ textarea { resize: vertical; line-height: 1.75; }
 .app-shell { min-height: 100vh; display: flex; }
 .chat-screen { width: 100%; min-width: 0; height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
 
+body.page-open .topbar,
+body.page-open .input-bar,
+body.page-open .side-drawer {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .topbar {
   position: fixed;
   top: 0;
@@ -405,8 +412,14 @@ textarea { resize: vertical; line-height: 1.75; }
 .modal { width: min(620px, 100%); padding: 20px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
 .confirm-modal p { line-height: 1.8; color: var(--muted); }
-.page-layer { display: flex; flex-direction: column; align-items: stretch; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-.page-header { position: sticky; top: 0; z-index: 5; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 14px 18px; }
+.page-layer { z-index: 180; display: flex; flex-direction: column; align-items: stretch; overflow-y: auto; -webkit-overflow-scrolling: touch; background:
+    linear-gradient(rgba(255, 250, 253, 0.94), rgba(255, 246, 250, 0.96)),
+    var(--bg-image) center / cover no-repeat,
+    #fff8fc; }
+.page-layer::after { content: ""; position: fixed; inset: 0; z-index: -1; background:
+    radial-gradient(circle, rgba(255,255,255,.62) 0 2px, transparent 2.8px) 10px 14px / 34px 34px,
+    radial-gradient(circle at 50% 0, rgba(255,255,255,.72) 0 8px, transparent 8.8px) 0 0 / 26px 14px repeat-x; pointer-events: none; }
+.page-header { position: sticky; top: 0; z-index: 5; display: grid; grid-template-columns: minmax(70px, auto) 1fr minmax(70px, auto); align-items: center; gap: 12px; padding: calc(12px + env(safe-area-inset-top)) 18px 14px; background: rgba(255,250,253,.92); border-bottom: 2px solid rgba(238,139,185,.42); box-shadow: 0 10px 26px rgba(203,91,145,.12); backdrop-filter: blur(14px) saturate(1.08); }
 .page-header h1 { text-align: center; margin: 0; }
 .home-grid { width: calc(100% - 28px); max-width: 1120px; margin: 22px auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .large-box,
@@ -488,7 +501,11 @@ textarea { resize: vertical; line-height: 1.75; }
   .modal textarea { max-height: 46dvh; }
   .modal-actions { gap: 8px; }
   .page-layer { padding: 0; min-height: 100vh; min-height: 100dvh; }
-  .page-header { grid-template-columns: auto 1fr auto; gap: 8px; padding: calc(8px + env(safe-area-inset-top)) 10px 8px; }
+  .page-header { grid-template-columns: minmax(58px, auto) 1fr minmax(58px, auto); gap: 6px; padding: calc(8px + env(safe-area-inset-top)) 8px 8px; }
+  .page-header .ghost-button,
+  .page-header .send-button,
+  .page-header select { min-height: 34px; padding: 6px 9px; font-size: 14px; }
+  .page-header select { max-width: 116px; border-radius: 999px; }
   .home-grid,
   .settings-band,
   .memory-list { width: calc(100% - 12px); }
@@ -1247,6 +1264,14 @@ function ensureApiReady() {
 
 async function generateWithApi({ source, text, previous, variant, eventId, avoidText = "" }) {
   const systemPrompt = [
+    "【人物状态栏最高优先级】本回合必须返回 statuses 数组，数组只包含当前在场人物，不保留离场人物。每个人必须包含 name、age、appearance、posture、thought、impression 六项。",
+    "【状态栏实时更新】appearance/posture/thought/impression 必须根据本回合剧情、双方距离、人物动作、氛围和情绪全新撰写，严禁照抄上一回合，严禁连续多回合完全相同，严禁固定模板。",
+    "【状态栏贴合设定】人物状态必须 100% 遵守世界设定；主要 NPC 出场时必须参考玩家填写的人设、性格、思维方式和行事逻辑，但不要复读设定原文，要结合当前剧情自然变化。",
+    "【内心想法格式】thought 必须是该角色本人的第一人称心理 OS，至少 30 个中文字符，像角色在脑子里自言自语；禁止“他觉得、她认为、气氛让他、此人意识到”等第三人称/旁白式心理概括。",
+    "【状态栏字段含义】appearance 写此人本回合即时外形、衣着、神态、外在状态；posture 写此人当下动作、姿势、站位；impression 写此人此刻对“你”的看法、警惕、亲近、好奇或判断。",
+    "【即时记忆规则】本回合必须返回 memory 字段，只写一句中文核心总结，概括玩家本回合输入、剧情推进和 NPC 关键反应；禁止复述完整对话，禁止写“你说：……NPC说：……”这种台词流水账。",
+    `上一回合人物状态（严禁照抄，必须避开完全相同表述）：${JSON.stringify(previous.statuses || [])}`,
+    "返回 JSON 结构必须为：{env:{time,place,weather}, blocks:[{type:'paragraph',text} 或 {type:'dialogue',speaker,text}], statuses:[{name,age,appearance,posture,thought,impression}], relations:[{name,description,affection}], memory:'一句话即时记忆'}。",
     "你是 MUYU 风格 AI 文字冒险引擎。",
     "绝对禁止代替玩家角色说话、做动作或做决定；只能描写环境、推动剧情、扮演 NPC。",
     "主控姓名只作为底层角色识别；正文中称呼主控时必须使用第二人称，不能直接写出主控姓名来替代玩家。",
@@ -1394,7 +1419,7 @@ function makeStreamingPreview(content) {
   if (!raw) return "";
   try {
     const parsed = parseApiJsonContent(raw);
-    return storyToPlainText(parsed);
+    return storyBodyPlainText(parsed);
   } catch {
     const texts = [];
     raw.replace(/"time"\s*:\s*"([^"]*)"/g, (_, value) => {
@@ -1417,7 +1442,9 @@ function makeStreamingPreview(content) {
       texts.push(unescapeJsonString(value));
       return "";
     });
-    return texts.join("\n\n") || raw.replace(/[{}\[\]",]/g, " ").replace(/\s+/g, " ").trim();
+    return texts
+      .filter((item) => !/^(时间|地点|天气|鏃堕棿|鍦扮偣|澶╂皵)/.test(item))
+      .join("\n\n") || raw.replace(/[{}\[\]",]/g, " ").replace(/\s+/g, " ").trim();
   }
 }
 
@@ -1428,6 +1455,15 @@ function storyToPlainText(story) {
   }
   (story?.blocks || []).forEach((block) => {
     if (block.type === "dialogue") parts.push(`${block.speaker || "NPC"}：「${block.text || ""}」`);
+    else if (block.text) parts.push(block.text);
+  });
+  return parts.filter(Boolean).join("\n\n");
+}
+
+function storyBodyPlainText(story) {
+  const parts = [];
+  (story?.blocks || []).forEach((block) => {
+    if (block.type === "dialogue") parts.push(`${block.speaker || "NPC"}：“${block.text || ""}”`);
     else if (block.text) parts.push(block.text);
   });
   return parts.filter(Boolean).join("\n\n");
@@ -1759,7 +1795,13 @@ function normalizeStory(story, previous, text, variant) {
     throw new Error("API 返回内容为空或格式不符合要求，请调整模型输出格式。");
   }
 
-  return { env: safeEnv, blocks: filteredBlocks };
+  return {
+    env: safeEnv,
+    blocks: filteredBlocks,
+    statuses: Array.isArray(story?.statuses) ? story.statuses : [],
+    relations: Array.isArray(story?.relations) ? story.relations : [],
+    memory: cleanMemorySummary(story?.memory || "")
+  };
 }
 
 function splitParagraphAndDialogue(text, prompt, variant) {
@@ -1935,14 +1977,87 @@ function rebuildTimeline() {
 function applyPlayerEvent(snapshot, event) {
   const next = clone(snapshot);
   next.seed += 1;
-  next.statuses = (next.statuses || []).map((person, index) => ({
-    ...person,
-    posture: describeResponsivePosture(person, event.text, next.env, index),
-    thought: buildThought(person, buildSceneCue(event.text, "", next.env), next.memories, next.seed + index),
-    impression: buildImpression(person, buildSceneCue(event.text, "", next.env), next.seed + index)
-  }));
   compactMemories(next);
   return next;
+}
+
+function findApiStatus(statuses, npc) {
+  if (!Array.isArray(statuses)) return null;
+  return statuses.find((item) => {
+    const name = String(item?.name || "").trim();
+    return name && (name === npc.name || npc.name.includes(name) || name.includes(npc.name));
+  }) || null;
+}
+
+function findApiRelation(relations, npc) {
+  if (!Array.isArray(relations)) return null;
+  return relations.find((item) => {
+    const name = String(item?.name || "").trim();
+    return name && (name === npc.name || npc.name.includes(name) || name.includes(npc.name));
+  }) || null;
+}
+
+function cleanStatusText(value) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .replace(/^(姓名|年龄|外形|体位|姿势|内心想法|对“你”印象|对你印象)\s*[:：]\s*/g, "")
+    .replace(/(根据|按照|遵循|读取|提炼|结合)设定[^。；;]*[。；;]?/g, "")
+    .replace(/(外貌|衣着|性格|状态)随着气氛而变化[。；;]?/g, "")
+    .replace(/AI|模型|模板|规则|系统提示|生成逻辑/g, "")
+    .trim();
+}
+
+function cleanThoughtText(value) {
+  const text = cleanStatusText(value);
+  if (!text) return "";
+  if (/(他觉得|她觉得|此人觉得|他认为|她认为|气氛让|让他|让她|忍不住想|内心认为|从.*角度|旁白|客观)/.test(text)) return "";
+  return text;
+}
+
+function sameStatusText(a, b) {
+  if (!a || !b) return false;
+  return normalizeCompareText(a) === normalizeCompareText(b);
+}
+
+function buildStatusField(field, context, offset = 0) {
+  const seed = context.seed + offset;
+  if (field === "appearance") return buildDynamicAppearance(context.npc, context.env, context.cue, seed);
+  if (field === "posture") return describePosture(context.env, seed, context.profile, context.cue);
+  if (field === "thought") return buildThought(context.npc, context.cue, context.memories, seed);
+  if (field === "impression") return buildImpression(context.npc, context.cue, seed);
+  return "";
+}
+
+function enforceFreshStatus(status, previous, context) {
+  const next = { ...status };
+  const fields = ["appearance", "posture", "thought", "impression"];
+  fields.forEach((field, index) => {
+    const value = field === "thought" ? cleanThoughtText(next[field]) : cleanStatusText(next[field]);
+    const invalidThought = field === "thought" && (!value || value.length < 30);
+    if (!value || invalidThought || sameStatusText(value, previous?.[field])) {
+      next[field] = buildStatusField(field, context, 17 + index * 11);
+    } else {
+      next[field] = value;
+    }
+    if (sameStatusText(next[field], previous?.[field])) {
+      next[field] = addSceneVariation(next[field], context.cue, context.seed + index);
+    }
+  });
+  next.thought = ensureLongThought(cleanThoughtText(next.thought), next.name);
+  if (sameStatusText(next.thought, previous?.thought)) {
+    next.thought = ensureLongThought(buildStatusField("thought", context, 71), next.name);
+  }
+  return next;
+}
+
+function addSceneVariation(text, cue, seed) {
+  const focus = sceneFocus(cue);
+  const tails = [
+    `这一刻，注意力明显被${focus}牵住了。`,
+    `和上一瞬相比，视线更多停在${focus}上。`,
+    `本回合的动静让这份反应比刚才更明显。`
+  ];
+  return `${String(text || "").replace(/[。；;]*$/g, "")}，${tails[Math.abs(seed) % tails.length]}`;
 }
 
 function applyAiEvent(snapshot, event) {
@@ -1966,30 +2081,44 @@ function applyAiEvent(snapshot, event) {
     const profile = parseCharacterProfile(npc, (event.variant || 0) + npc.offset);
     const personalCue = [cue, speechByNpc[npc.name] || ""].filter(Boolean).join("，");
     const statusSeed = (event.variant || 0) + npc.offset + next.seed;
-    const status = {
+    const apiStatus = findApiStatus(event.story.statuses, npc);
+    let status = {
       id: npc.id,
       name: npc.name,
       detail: npc.detail || npc.existing?.detail || "",
-      age: npc.age || npc.existing?.age || "未知",
+      age: cleanStatusText(apiStatus?.age) || npc.age || npc.existing?.age || "未知",
       profile,
-      appearance: buildDynamicAppearance({ ...npc, profile }, event.story.env, personalCue, statusSeed),
-      posture: describePosture(event.story.env, statusSeed, profile, personalCue),
-      thought: buildThought({ ...npc, profile }, personalCue, next.memories, statusSeed),
-      impression: buildImpression({ ...npc, profile }, personalCue, statusSeed)
+      appearance: cleanStatusText(apiStatus?.appearance) || buildDynamicAppearance({ ...npc, profile }, event.story.env, personalCue, statusSeed),
+      posture: cleanStatusText(apiStatus?.posture) || describePosture(event.story.env, statusSeed, profile, personalCue),
+      thought: cleanThoughtText(apiStatus?.thought) || buildThought({ ...npc, profile }, personalCue, next.memories, statusSeed),
+      impression: cleanStatusText(apiStatus?.impression) || buildImpression({ ...npc, profile }, personalCue, statusSeed)
     };
+    status = enforceFreshStatus(status, npc.existing, {
+      npc: { ...npc, profile },
+      env: event.story.env,
+      cue: personalCue,
+      memories: next.memories,
+      seed: statusSeed,
+      profile
+    });
     currentStatuses.push(status);
 
     const relation = next.relations.find((item) => item.id === npc.id || item.name === npc.name);
+    const apiRelation = findApiRelation(event.story.relations, npc);
+    const apiRelationDescription = cleanStatusText(apiRelation?.description);
+    const apiAffection = Number(apiRelation?.affection);
     const delta = event.source === "directive" ? 1 : Math.max(1, Math.min(6, (event.prompt || "").length % 7));
     if (relation) {
-      relation.affection = clamp(Number(relation.affection || 0) + delta - (event.variant ? 1 : 0), -100, 100);
-      relation.description = buildRelationDescription(npc, status.impression);
+      relation.affection = Number.isFinite(apiAffection)
+        ? clamp(apiAffection, -100, 100)
+        : clamp(Number(relation.affection || 0) + delta - (event.variant ? 1 : 0), -100, 100);
+      relation.description = apiRelationDescription || buildRelationDescription(npc, status.impression);
     } else {
       next.relations.push({
         id: npc.id,
         name: npc.name,
-        description: buildRelationDescription(npc, status.impression),
-        affection: delta
+        description: apiRelationDescription || buildRelationDescription(npc, status.impression),
+        affection: Number.isFinite(apiAffection) ? clamp(apiAffection, -100, 100) : delta
       });
     }
   });
@@ -1997,7 +2126,7 @@ function applyAiEvent(snapshot, event) {
   next.memories.instant.push({
     id: `mem-${event.id}`,
     sourceEventId: event.id,
-    text: summarizeRoundMemory(event, storyText, npcs)
+    text: cleanMemorySummary(event.story.memory) || summarizeRoundMemory(event, storyText, npcs)
   });
   compactMemories(next);
   return next;
@@ -2022,12 +2151,47 @@ function applyMemoryMergeEvent(snapshot, event) {
   return next;
 }
 
+function cleanMemorySummary(value) {
+  const clean = String(value || "")
+    .replace(/\s+/g, " ")
+    .replace(/[“”"「」『』].*?[“”"「」『』]/g, "这段对话")
+    .replace(/(你|主控|玩家)\s*(说|问|回复|表示)\s*[:：][^；。]+[；。]?/g, "你进行了交流。")
+    .replace(/[^，。；]*?(?:说|说道|问道|回答|回复)\s*[:：][^；。]+[；。]?/g, "")
+    .replace(/(?:本回合|即时记忆|总结)\s*[:：]\s*/g, "")
+    .replace(/[；;]\s*[；;]+/g, "；")
+    .trim();
+  if (!clean) return "";
+  const sentence = clean.split(/[。！？]/).find((part) => part.trim()) || clean;
+  const oneLine = sentence.replace(/[；;]$/g, "").trim();
+  return oneLine.length > 96 ? `${oneLine.slice(0, 96)}…` : oneLine;
+}
+
 function summarizeRoundMemory(event, storyText, npcs) {
   const action = compactText(normalizePlayerActionForMemory(event.prompt || "剧情发展指令"), 42);
-  const story = compactText(storyText, 70);
+  const story = compactText(stripDialogueForMemory(storyText), 58);
   const npcNames = [...new Set((npcs || []).map((npc) => npc.name).filter(Boolean))].slice(0, 3).join("、") || "现场人物";
-  const reaction = compactText(extractDialogueSummary(event.story) || "现场人物根据本回合剧情调整了态度与行动。", 54);
-  return `本回合你${action}；剧情推进为${story}；${npcNames}的反应是${reaction}`;
+  const reaction = compactText(extractReactionSummary(event.story) || "现场人物根据本回合剧情调整了态度与行动。", 44);
+  return cleanMemorySummary(`你${action}，剧情核心是${story}，${npcNames}的关键反应是${reaction}`);
+}
+
+function stripDialogueForMemory(text) {
+  return String(text || "")
+    .replace(/[“”"「」『』].*?[“”"「」『』]/g, "")
+    .replace(/[\u4e00-\u9fa5A-Za-z0-9·]{1,16}[：:][^。；!?！？]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractReactionSummary(story) {
+  const speakers = [...new Set((story?.blocks || [])
+    .filter((block) => block.type === "dialogue" && block.speaker)
+    .map((block) => block.speaker))];
+  const paragraphs = (story?.blocks || [])
+    .filter((block) => block.type !== "dialogue" && block.text)
+    .map((block) => stripDialogueForMemory(block.text))
+    .filter(Boolean);
+  const action = paragraphs.at(-1) || paragraphs[0] || "";
+  return [speakers.length ? `${speakers.slice(0, 2).join("、")}参与回应` : "", action].filter(Boolean).join("，");
 }
 
 function compactMemories(snapshot) {
@@ -2173,9 +2337,23 @@ function buildDynamicAppearance(npc, env, cue, variant) {
     profile.skin,
     profile.face,
     profile.clothes,
-    pick(expression, variant + cue.length)
+    pick(expression, variant + cue.length),
+    sceneOuterDetail(cue, variant)
   ].filter(Boolean);
-  return base.slice(0, 4).join("，") + "。";
+  return base.slice(0, 5).join("，") + "。";
+}
+
+function sceneOuterDetail(cue, variant) {
+  const text = String(cue || "");
+  const details = [];
+  if (/牛肉|饭|汤|厨房|吃/.test(text)) details.push("袖口和发梢像是还沾着一点厨房热气");
+  if (/门|锁|钥匙|防盗/.test(text)) details.push("目光总会往门锁和门缝那边偏一下");
+  if (/走廊|楼道|门口/.test(text)) details.push("身侧被走廊冷白的光勾出一圈浅边");
+  if (/雨|风|冷|夜/.test(text)) details.push("衣料边缘带着夜风压出的细小褶皱");
+  if (/笑|高兴|邀请|聊天/.test(text)) details.push("眉眼比刚才松开些，神色显得更亲近");
+  if (/危险|血|黑|怕|紧张|异常/.test(text)) details.push("脸色被当前动静压得更紧，眼神多了戒备");
+  if (!details.length) details.push("神情正被本回合的动静牵动着，细节比上一刻更鲜明");
+  return details[Math.abs(variant) % details.length];
 }
 
 function extractAppearanceTraits(detail) {
@@ -2469,11 +2647,24 @@ function openEdit(kind, id) {
 function show(el) {
   el.hidden = false;
   el.classList.remove("hidden");
+  if (el.classList.contains("page-layer")) {
+    document.body.classList.add("page-open");
+  }
 }
 
 function hide(el) {
   el.classList.add("hidden");
   el.hidden = true;
+  if (el.classList.contains("page-layer") && !document.querySelector(".page-layer:not(.hidden)")) {
+    document.body.classList.remove("page-open");
+  }
+}
+
+function showPage(el) {
+  [els.memoryPage, els.homePage].forEach((page) => {
+    if (page && page !== el) hide(page);
+  });
+  show(el);
 }
 
 function setSidebarMode(mode) {
@@ -2618,11 +2809,11 @@ function bindEvents() {
   });
   els.memoryButton.addEventListener("click", () => {
     renderMemoryPage();
-    show(els.memoryPage);
+    showPage(els.memoryPage);
   });
   els.homeButton.addEventListener("click", () => {
     renderHome();
-    show(els.homePage);
+    showPage(els.homePage);
   });
 
   document.querySelectorAll("[data-close-page]").forEach((button) => {

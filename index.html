@@ -695,7 +695,8 @@ const defaultState = {
     apiUrl: QWEN_DEFAULT_URL,
     apiKey: "",
     apiModel: "qwen-plus",
-    apiModels: ["qwen-plus", "qwen3.5-plus", "qwen3-plus", "qwen-turbo", "qwen-max", "qwen-long"]
+    apiModels: ["qwen-plus", "qwen3.5-plus", "qwen3-plus", "qwen-turbo", "qwen-max", "qwen-long"],
+    settingDigest: ""
   },
   events: [],
   snapshots: [],
@@ -799,6 +800,7 @@ function migrateState(next) {
   if (!next.settings.apiUrl || !isQwenUrl(next.settings.apiUrl)) next.settings.apiUrl = QWEN_DEFAULT_URL;
   if (!next.settings.apiModel) next.settings.apiModel = "qwen-plus";
   next.settings.apiModels = [...new Set([...next.settings.apiModels, ...defaultState.settings.apiModels])];
+  if (!next.settings.settingDigest) next.settings.settingDigest = buildSettingDigest(next.settings);
   next.events = Array.isArray(next.events) ? next.events : [];
   next.snapshots = Array.isArray(next.snapshots) ? next.snapshots : [];
   next.selectedMemories = Array.isArray(next.selectedMemories) ? next.selectedMemories : [];
@@ -1133,8 +1135,30 @@ function formatPlayerProfileForPrompt() {
   ].join("\n");
 }
 
+function refreshSettingDigest() {
+  state.settings.settingDigest = buildSettingDigest(state.settings);
+}
+
+function buildSettingDigest(settings) {
+  const player = typeof settings.player === "string"
+    ? { name: "", gender: "", age: "", detail: settings.player }
+    : { name: "", gender: "", age: "", detail: "", ...(settings.player || {}) };
+  const npcBrief = (settings.npcs || [])
+    .filter((npc) => (npc.name || npc.detail || "").trim())
+    .slice(0, 8)
+    .map((npc) => `${npc.name || "未命名"}(${npc.gender || "未知"},${npc.age || "未知"}):${compactForPrompt(npc.detail || "", 120)}`)
+    .join("；");
+  return [
+    `世界摘要：${compactForPrompt(settings.world || "未填写", 420)}`,
+    `主控：${player.name || "未填写"}，${player.gender || "未填写"}，${player.age || "未填写"}；${compactForPrompt(player.detail || "", 160)}`,
+    `主要NPC摘要：${npcBrief || "未填写"}`,
+    "固定规则：称呼主控用第二人称；不得替主控说话、行动、思考或决定；主要NPC按设定自然演化，不机械复述。"
+  ].join("\n");
+}
+
 function syncWorldFromInputs() {
   state.settings.world = els.worldSetting.value.trim();
+  refreshSettingDigest();
 }
 
 function syncCharacterFromInputs() {
@@ -1145,6 +1169,7 @@ function syncCharacterFromInputs() {
     detail: els.playerDetail.value.trim()
   };
   syncNpcSettingsFromInputs();
+  refreshSettingDigest();
 }
 
 function syncNpcSettingsFromInputs() {
@@ -1157,6 +1182,7 @@ function syncNpcSettingsFromInputs() {
     age: card.querySelector("[data-npc-field='age']")?.value.trim() || "",
     detail: card.querySelector("[data-npc-field='detail']")?.value.trim() || ""
   }));
+  refreshSettingDigest();
 }
 
 function syncApiFromInputs() {
@@ -1304,7 +1330,25 @@ function ensureApiReady() {
   }
 }
 
+function compactForPrompt(value, limit = 1000) {
+  const text = typeof value === "string" ? value : JSON.stringify(value || "");
+  return text.length > limit ? `${text.slice(0, limit)}……` : text;
+}
+
+function buildGenerationSettingContext(includeOriginal) {
+  const digest = state.settings.settingDigest || buildSettingDigest(state.settings);
+  if (!includeOriginal) return `设定摘要（后续回合只读取摘要，避免重复长设定）：\n${digest}`;
+  return [
+    `设定摘要：\n${digest}`,
+    `开局设定原文片段：${compactForPrompt(state.settings.world || "未填写", 900)}`,
+    `开局主控片段：${compactForPrompt(formatPlayerProfileForPrompt(), 420)}`,
+    `开局主要NPC片段：${compactForPrompt(state.settings.npcs, 700)}`
+  ].join("\n");
+}
+
 async function generateWithApi({ source, text, previous, variant, eventId, avoidText = "", fixedEnv }) {
+  const isOpeningContext = state.events.filter((event) => event.type === "ai" && event.status === "done").length === 0;
+  const settingContext = buildGenerationSettingContext(isOpeningContext);
   const systemPrompt = [
     "【人物状态栏最高优先级】本回合必须返回 statuses 数组，数组只包含当前在场人物，不保留离场人物。每个人必须包含 name、age、appearance、posture、thought、impression 六项。",
     "【状态栏实时更新】appearance/posture/thought/impression 必须根据本回合剧情、双方距离、人物动作、氛围和情绪全新撰写，严禁照抄上一回合，严禁连续多回合完全相同，严禁固定模板。",
@@ -1312,7 +1356,7 @@ async function generateWithApi({ source, text, previous, variant, eventId, avoid
     "【内心想法格式】thought 必须是该角色本人的第一人称心理 OS，至少 30 个中文字符，像角色在脑子里自言自语；禁止“他觉得、她认为、气氛让他、此人意识到”等第三人称/旁白式心理概括。",
     "【状态栏字段含义】appearance 写此人本回合即时外形、衣着、神态、外在状态；posture 写此人当下动作、姿势、站位；impression 写此人此刻对“你”的看法、警惕、亲近、好奇或判断。",
     "【即时记忆规则】本回合必须返回 memory 字段，只写一句中文核心总结，概括玩家本回合输入、剧情推进和 NPC 关键反应；禁止复述完整对话，禁止写“你说：……NPC说：……”这种台词流水账。",
-    `上一回合人物状态（严禁照抄，必须避开完全相同表述）：${JSON.stringify(previous.statuses || [])}`,
+    `上一回合人物状态（严禁照抄，必须避开完全相同表述）：${compactForPrompt(previous.statuses || [], 1200)}`,
     "返回 JSON 结构必须为：{env:{time,place,weather}, blocks:[{type:'paragraph',text} 或 {type:'dialogue',speaker,text}], statuses:[{name,age,appearance,posture,thought,impression}], relations:[{name,description,affection}], memory:'一句话即时记忆'}。",
     "【非剧情输出禁止】禁止输出思考过程、政策说明、安全指南、英文解释、道歉模板、模型限制说明或任何 JSON 之外的文字；即使需要避开敏感内容，也必须改写为安全的全年龄剧情 JSON。",
     "【未成年角色安全边界】如果人物未满 18 岁，剧情只允许全年龄的日常、悬疑、友情、紧张对峙或普通情绪互动；禁止任何性暗示、露骨描写、成人关系推进、挑逗化描写。遇到相关输入时，保持边界并自然转向安全剧情，仍返回规定 JSON。",
@@ -1329,17 +1373,15 @@ async function generateWithApi({ source, text, previous, variant, eventId, avoid
     "禁止在 paragraph 正文里写“时间：地点：天气：”这种信息条内容；环境信息只能放在 env 字段。",
     fixedEnv ? `本次是重说：env.time、env.place、env.weather 必须原样返回 ${JSON.stringify(fixedEnv)}，禁止改动时间、地点、天气；只重写 blocks 剧情文本、statuses、relations、memory。` : "",
     fixedEnv ? "重说时必须生成明显不同的新版本：更换剧情细节、NPC 动作、主要台词措辞和剧情推进方向；不能只替换同义词，不能与上一版大差不差；但时间、地点、天气必须保持不变。" : "重说时必须生成明显不同的新版本：更换至少两个环境细节、一个 NPC 动作、主要台词措辞和剧情推进方向；不能只替换同义词，不能与上一版大差不差。",
-    "世界设定是最高优先级硬规则：所有场景、人物、行为、心理、社会规则、时代背景、势力关系、叙事尺度、对话风格都必须 100% 遵循世界设定原文，禁止私自修改、增删、篡改或混搭无关题材、时代、规则。",
+    "世界设定是最高优先级硬规则：所有场景、人物、行为、心理、社会规则、时代背景、势力关系、叙事尺度、对话风格都必须遵循设定摘要，禁止私自修改、增删、篡改或混搭无关题材、时代、规则。",
     "必须理解设定并以设定为圆心自然发展叙事世界，不要生硬复述设定，但任何剧情推进都不能与设定冲突。",
     "如果主要 NPC 出场，必须参照其人物设定里的性格、思维方式、行事逻辑和关系背景发展；禁止死套固定模板，禁止每回合机械重复设定，必须结合当前剧情和记忆自然演化。",
     "人物状态里的内心想法必须是该角色本人第一人称心理 OS，用角色自己的口吻碎碎念；禁止第三人称心理概括、上帝视角解说、规则说明。",
     "记忆是全局连续事实：即时记忆、长期记忆、整合记忆都必须永久生效；NPC 必须记得记忆里的事件、对话、人物印象，并在后续内心、对话、行为逻辑中持续体现，禁止失忆、忘记前情或人设割裂。",
-    `世界设定：${state.settings.world || "未填写"}`,
-    `主控设定：${formatPlayerProfileForPrompt()}`,
-    `主要 NPC：${JSON.stringify(state.settings.npcs)}`,
+    settingContext,
     "主要 NPC 是参考资料：不需要立刻全部出场，也不需要每回合都出场；可以自然引入新 NPC 或让场景中人物随机变化。",
-    `当前环境：${JSON.stringify(previous.env)}`,
-    `当前记忆：${JSON.stringify(previous.memories)}`,
+    `当前环境：${compactForPrompt(previous.env, 500)}`,
+    `当前记忆摘要：${compactForPrompt(previous.memories, 900)}`,
     `生成模式：${source === "directive" ? "剧情发展指令扩写，不写玩家反应" : "回应玩家输入，不越权操控玩家"}`,
     `重说差异种子：${variant}`,
     avoidText ? `上一版剧情摘要，重说时必须避开这些内容和措辞：${avoidText.slice(0, 900)}` : ""
@@ -1355,6 +1397,7 @@ async function generateWithApi({ source, text, previous, variant, eventId, avoid
     temperature: variant ? 0.95 : 0.75,
     presence_penalty: variant ? 0.8 : 0.2,
     frequency_penalty: variant ? 0.7 : 0.1,
+    max_tokens: 1400,
     stream: false
   };
 
@@ -1953,7 +1996,7 @@ async function throwApiHttpError(response) {
 
 function formatGenerationError(error) {
   if (error?.name === "AbortError") {
-    return "生成失败：API 请求超时。千问有时首包较慢，请稍后重试；如果一直超时，建议换 qwen-plus/qwen-turbo，或用 http://127.0.0.1 本地预览地址打开页面再试。";
+    return "生成失败：API 请求超过 45 秒没有完成。请先换 qwen-turbo 或 qwen-plus 测试，缩短世界设定/角色设定，确认模型没有卡在复杂长上下文里。";
   }
   const message = String(error?.message || error || "未知错误");
   if (/400|Bad Request/i.test(message)) return `生成失败：请求参数不被接口接受。请检查模型名是否正确，当前模型可以先试 qwen-plus。${message}`;
@@ -1972,7 +2015,7 @@ function formatGenerationError(error) {
 function getApiTimeout() {
   const debugTimeout = new URLSearchParams(window.location.search).get("apiTimeout");
   const parsed = Number(debugTimeout);
-  return Number.isFinite(parsed) && parsed >= 500 ? parsed : 120000;
+  return Number.isFinite(parsed) && parsed >= 500 ? parsed : 45000;
 }
 
 function getStreamApiTimeout() {
@@ -3372,6 +3415,8 @@ renderAll();
 </script>
 </body>
 </html>
+
+
 
 
 

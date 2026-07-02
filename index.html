@@ -1314,6 +1314,8 @@ async function generateWithApi({ source, text, previous, variant, eventId, avoid
     "【即时记忆规则】本回合必须返回 memory 字段，只写一句中文核心总结，概括玩家本回合输入、剧情推进和 NPC 关键反应；禁止复述完整对话，禁止写“你说：……NPC说：……”这种台词流水账。",
     `上一回合人物状态（严禁照抄，必须避开完全相同表述）：${JSON.stringify(previous.statuses || [])}`,
     "返回 JSON 结构必须为：{env:{time,place,weather}, blocks:[{type:'paragraph',text} 或 {type:'dialogue',speaker,text}], statuses:[{name,age,appearance,posture,thought,impression}], relations:[{name,description,affection}], memory:'一句话即时记忆'}。",
+    "【非剧情输出禁止】禁止输出思考过程、政策说明、安全指南、英文解释、道歉模板、模型限制说明或任何 JSON 之外的文字；即使需要避开敏感内容，也必须改写为安全的全年龄剧情 JSON。",
+    "【未成年角色安全边界】如果人物未满 18 岁，剧情只允许全年龄的日常、悬疑、友情、紧张对峙或普通情绪互动；禁止任何性暗示、露骨描写、成人关系推进、挑逗化描写。遇到相关输入时，保持边界并自然转向安全剧情，仍返回规定 JSON。",
     "你是 MUYU 风格 AI 文字冒险引擎。",
     "绝对禁止代替玩家角色说话、做动作或做决定；只能描写环境、推动剧情、扮演 NPC。",
     "主控姓名只作为底层角色识别；正文中称呼主控时必须使用第二人称，不能直接写出主控姓名来替代玩家。",
@@ -1391,8 +1393,11 @@ async function generateWithApi({ source, text, previous, variant, eventId, avoid
     content = extractResponseMessage(data);
     updateStreamingText(eventId, makeStreamingPreview(content) || "正在整理剧情格式……");
   }
-  if (!String(content || "").trim() || looksLikeIncompleteJson(content)) {
+  if (!String(content || "").trim() || looksLikeIncompleteJson(content) || isNonStoryModelOutput(content)) {
     content = await retryWithoutStream(requestBody, eventId);
+  }
+  if (isNonStoryModelOutput(content)) {
+    throw new Error("模型返回了非剧情内容或安全说明，已阻止其进入聊天正文。请检查世界设定/角色年龄/输入内容，避免未成年角色的成人或露骨方向，然后重试。");
   }
   const parsed = parseApiJsonContent(content);
   return normalizeStory(parsed, previous, text, variant, fixedEnv);
@@ -1416,13 +1421,40 @@ async function retryWithoutStream(requestBody, eventId) {
 }
 
 function extractResponseMessage(data) {
-  return data?.choices?.[0]?.message?.content
-    || data?.choices?.[0]?.delta?.content
-    || data?.output_text
-    || data?.output?.text
-    || data?.output?.content
-    || data?.output?.choices?.[0]?.message?.content
-    || "";
+  return firstContentString(
+    data?.choices?.[0]?.message?.content,
+    data?.choices?.[0]?.delta?.content,
+    data?.output_text,
+    data?.output?.text,
+    data?.output?.content,
+    data?.output?.choices?.[0]?.message?.content,
+    data?.message?.content,
+    data?.content,
+    data?.text
+  );
+}
+
+function firstContentString(...values) {
+  for (const value of values) {
+    const text = contentValueToString(value);
+    if (text.trim()) return text;
+  }
+  return "";
+}
+
+function contentValueToString(value) {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    return value.map((item) => contentValueToString(item)).filter(Boolean).join("");
+  }
+  if (typeof value === "object") {
+    if (value.env || value.blocks || value.statuses || value.relations || value.memory) {
+      return JSON.stringify(value);
+    }
+    return firstContentString(value.text, value.content, value.output_text, value.message?.content);
+  }
+  return String(value || "");
 }
 
 async function generateMergedMemoryWithApi(selected) {
@@ -1458,7 +1490,7 @@ async function generateMergedMemoryWithApi(selected) {
   }, getApiTimeout());
   if (!response.ok) await throwApiHttpError(response);
   const data = await response.json();
-  const raw = data.choices?.[0]?.message?.content || data.output_text || "";
+  const raw = extractResponseMessage(data);
   const clean = String(raw || "")
     .replace(/^```(?:text|markdown)?\s*/i, "")
     .replace(/\s*```$/i, "")
@@ -1529,18 +1561,22 @@ function readStreamChunkWithTimeout(reader, timeout) {
 
 function extractStreamDelta(json) {
   const choice = json?.choices?.[0] || json?.output?.choices?.[0] || {};
-  return choice.delta?.content
-    || choice.message?.content
-    || json?.output_text
-    || json?.output?.text
-    || json?.output?.content
-    || json?.text
-    || "";
+  return firstContentString(
+    choice.delta?.content,
+    choice.message?.content,
+    json?.output_text,
+    json?.output?.text,
+    json?.output?.content,
+    json?.message?.content,
+    json?.content,
+    json?.text
+  );
 }
 
 function makeStreamingPreview(content) {
   const raw = String(content || "").trim();
   if (!raw) return "";
+  if (isNonStoryModelOutput(raw)) return "模型返回非剧情说明，正在尝试重新获取剧情……";
   if (looksLikeIncompleteJson(raw)) return "正在输入中……";
   try {
     const parsed = parseApiJsonContent(raw);
@@ -1660,6 +1696,9 @@ function updateStreamingText(eventId, text) {
 function parseApiJsonContent(content) {
   const raw = String(content || "").trim();
   if (!raw) throw new Error("API 返回内容为空。");
+  if (isNonStoryModelOutput(raw)) {
+    throw new Error("模型返回了非剧情内容或安全说明，不能作为剧情显示。");
+  }
   const withoutFence = raw
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/i, "")
@@ -1686,19 +1725,11 @@ function parseApiJsonContent(content) {
 
 function unwrapApiStoryPayload(payload) {
   if (!payload || typeof payload !== "object") return payload;
-  const nestedText = payload.choices?.[0]?.message?.content
-    || payload.choices?.[0]?.delta?.content
-    || payload.output_text
-    || payload.output?.text
-    || payload.output?.content
-    || payload.output?.choices?.[0]?.message?.content;
-  if (nestedText && typeof nestedText === "string") {
+  const nestedText = extractResponseMessage(payload);
+  if (nestedText) {
     return parseApiJsonContent(nestedText);
   }
   if (payload.story && typeof payload.story === "object") return payload.story;
-  if (!payload.blocks && typeof payload.content === "string") {
-    return parseApiJsonContent(payload.content);
-  }
   return payload;
 }
 
@@ -1708,6 +1739,7 @@ function parseTextResponseToStory(text) {
     .replace(/\s*```$/i, "")
     .trim();
   if (!clean) return { blocks: [] };
+  if (isNonStoryModelOutput(clean)) return { blocks: [] };
   if (looksLikeJsonDump(clean)) return { blocks: [] };
   const lines = clean
     .split(/\n{2,}|\r?\n/)
@@ -1903,6 +1935,14 @@ function isJsonCodeText(text) {
 
 function containsJsonFieldCode(text) {
   return /["']?(env|blocks|statuses|relations|memory|type|text|speaker|appearance|posture|thought|impression|affection)["']?\s*:/.test(String(text || ""));
+}
+
+function isNonStoryModelOutput(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return false;
+  const lower = raw.toLowerCase();
+  return /safety guidelines|csam|child safety|under 18|underage|minor characters|sexually explicit|legal requirements|policy|as an ai|i can't|i cannot|i’m sorry|i'm sorry|cannot comply|not able to assist|actually looking at safety/i.test(lower)
+    && !/"blocks"\s*:|type\s*:\s*["']?(paragraph|dialogue)|"env"\s*:/.test(raw);
 }
 
 async function fetchWithTimeout(url, options = {}, timeout = 12000) {
@@ -2109,7 +2149,7 @@ async function testApiConnection() {
     }, getQuickApiTimeout());
     if (!response.ok) await throwApiHttpError(response);
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || data.output_text || "";
+    const content = extractResponseMessage(data);
     try {
       const parsed = parseApiJsonContent(content);
       if (!parsed?.env || !Array.isArray(parsed?.blocks)) {
@@ -3354,6 +3394,8 @@ renderAll();
 </script>
 </body>
 </html>
+
+
 
 
 

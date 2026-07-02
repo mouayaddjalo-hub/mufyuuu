@@ -1355,46 +1355,24 @@ async function generateWithApi({ source, text, previous, variant, eventId, avoid
     temperature: variant ? 0.95 : 0.75,
     presence_penalty: variant ? 0.8 : 0.2,
     frequency_penalty: variant ? 0.7 : 0.1,
-    stream: true
+    stream: false
   };
 
-  let response;
-  try {
-    response = await fetchWithTimeout(state.settings.apiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${state.settings.apiKey}`
-      },
-      body: JSON.stringify(requestBody)
-    }, getStreamApiTimeout());
-  } catch (error) {
-    if (error?.name === "AbortError") {
-      updateStreamingText(eventId, "流式连接无响应，正在改用完整剧情请求……");
-      const retryContent = await retryWithoutStream(requestBody, eventId);
-      const parsed = parseApiJsonContent(retryContent);
-      return normalizeStory(parsed, previous, text, variant, fixedEnv);
-    }
-    throw error;
-  }
-
+  updateStreamingText(eventId, "正在请求完整剧情……");
+  const response = await fetchWithTimeout(state.settings.apiUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${state.settings.apiKey}`
+    },
+    body: JSON.stringify(requestBody)
+  }, getApiTimeout());
   if (!response.ok) await throwApiHttpError(response);
-  const contentType = response.headers.get("content-type") || "";
-  let content = "";
-  if (response.body && /text\/event-stream|stream/i.test(contentType)) {
-    try {
-      content = await readOpenAiStream(response, eventId);
-    } catch (error) {
-      updateStreamingText(eventId, "流式输出中断，正在重新获取完整剧情……");
-      content = await retryWithoutStream(requestBody, eventId);
-    }
-  } else {
-    const data = await response.json();
-    content = extractResponseMessage(data);
-    updateStreamingText(eventId, makeStreamingPreview(content) || "正在整理剧情格式……");
-  }
-  if (!String(content || "").trim() || looksLikeIncompleteJson(content) || isNonStoryModelOutput(content)) {
-    content = await retryWithoutStream(requestBody, eventId);
+  const data = await response.json();
+  let content = extractResponseMessage(data);
+  updateStreamingText(eventId, makeStreamingPreview(content) || "正在整理剧情格式……");
+  if (!String(content || "").trim()) {
+    throw new Error("API 返回内容为空：完整请求没有返回 message.content，请检查模型名称、账号权限或服务商返回结构。");
   }
   if (isNonStoryModelOutput(content)) {
     throw new Error("模型返回了非剧情内容或安全说明，已阻止其进入聊天正文。请检查世界设定/角色年龄/输入内容，避免未成年角色的成人或露骨方向，然后重试。");
@@ -3394,6 +3372,7 @@ renderAll();
 </script>
 </body>
 </html>
+
 
 
 

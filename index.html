@@ -27,6 +27,7 @@
   --shadow: 0 16px 34px rgba(203, 91, 145, 0.18);
   --small-shadow: 0 8px 18px rgba(203, 91, 145, 0.16);
   --font-round: "Arial Rounded MT Bold", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  --keyboard-offset: 0px;
 }
 
 * { box-sizing: border-box; }
@@ -271,7 +272,7 @@ body.page-open .side-drawer {
   width: calc(100% - 12px);
   max-width: 920px;
   margin: 0 auto;
-  padding: calc(74px + env(safe-area-inset-top)) 0 calc(108px + env(safe-area-inset-bottom));
+  padding: calc(74px + env(safe-area-inset-top)) 0 calc(108px + env(safe-area-inset-bottom) + var(--keyboard-offset));
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-color: rgba(247,154,196,0.6) rgba(255,255,255,0.25);
@@ -368,8 +369,9 @@ body.page-open .side-drawer {
 .button-row { display: flex; gap: 8px; flex-wrap: wrap; padding-top: 8px; border-top: 2px dashed rgba(244,166,202,.42); }
 .message-action { padding: 7px 13px; }
 
-.input-bar { position: fixed; z-index: 30; left: 50%; bottom: max(10px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: calc(100% - 12px); max-width: 940px; display: flex; align-items: flex-end; gap: 10px; padding: 12px; border-radius: 30px; }
+.input-bar { position: fixed; z-index: 30; left: 50%; bottom: calc(max(10px, env(safe-area-inset-bottom)) + var(--keyboard-offset)); transform: translateX(-50%); width: calc(100% - 12px); max-width: 940px; display: flex; align-items: flex-end; gap: 10px; padding: 12px; border-radius: 30px; transition: bottom 180ms ease; }
 .input-bar textarea { min-height: 46px; max-height: 160px; resize: none; line-height: 1.55; }
+body.keyboard-open .input-bar { box-shadow: 0 10px 30px rgba(203, 91, 145, 0.24), 0 0 0 4px rgba(255,255,255,0.28); }
 
 .side-drawer { position: fixed; z-index: 60; left: 0; top: 50%; width: 104px; height: 174px; transform: translate(calc(-100% + 34px + var(--drag-x, 0px)), -50%); transition: transform 220ms ease; overflow: visible; touch-action: pan-y; filter: drop-shadow(0 10px 18px rgba(203,91,145,.2)); }
 .side-drawer.open { transform: translate(0, -50%); }
@@ -467,8 +469,8 @@ body.page-open .side-drawer {
   .send-button,
   .ghost-button,
   .danger-button { padding: 7px 10px; min-height: 36px; font-size: 14px; }
-  .input-bar { bottom: max(8px, env(safe-area-inset-bottom)); width: calc(100% - 12px); gap: 7px; padding: 8px; border-radius: 26px; }
-  .chat-log { width: calc(100% - 10px); padding-top: calc(58px + env(safe-area-inset-top)); padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
+  .input-bar { bottom: calc(max(8px, env(safe-area-inset-bottom)) + var(--keyboard-offset)); width: calc(100% - 12px); gap: 7px; padding: 8px; border-radius: 26px; }
+  .chat-log { width: calc(100% - 10px); padding-top: calc(58px + env(safe-area-inset-top)); padding-bottom: calc(104px + env(safe-area-inset-bottom) + var(--keyboard-offset)); }
   .empty-state { margin-top: 18px; padding: 16px; border-radius: 20px; }
   .round-button { flex-basis: 40px; width: 40px; height: 40px; font-size: 22px; }
   .input-bar textarea { min-height: 40px; max-height: 118px; padding: 9px 11px; font-size: 15px; }
@@ -3271,6 +3273,40 @@ function setupDraggableSidebar() {
   window.addEventListener("touchcancel", end);
 }
 
+function setupMobileKeyboardLift() {
+  const root = document.documentElement;
+  const baseHeight = () => Math.max(window.innerHeight || 0, root.clientHeight || 0);
+  const update = () => {
+    const viewport = window.visualViewport;
+    let offset = 0;
+    if (viewport) {
+      const hidden = Math.max(0, baseHeight() - viewport.height - viewport.offsetTop);
+      offset = hidden > 80 ? hidden : 0;
+    }
+    const focused = document.activeElement === els.playerInput;
+    root.style.setProperty("--keyboard-offset", focused && offset ? `${Math.round(offset)}px` : "0px");
+    document.body.classList.toggle("keyboard-open", focused && offset > 0);
+    if (focused) {
+      window.requestAnimationFrame(() => {
+        els.playerInput.scrollIntoView({ block: "nearest", inline: "nearest" });
+        els.chatLog.scrollTop = els.chatLog.scrollHeight;
+      });
+    }
+  };
+
+  els.playerInput.addEventListener("focus", update);
+  els.playerInput.addEventListener("blur", () => {
+    root.style.setProperty("--keyboard-offset", "0px");
+    document.body.classList.remove("keyboard-open");
+  });
+  window.addEventListener("resize", update);
+  window.addEventListener("orientationchange", () => window.setTimeout(update, 250));
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", update);
+    window.visualViewport.addEventListener("scroll", update);
+  }
+}
+
 function bindEvents() {
   els.inputForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -3282,6 +3318,9 @@ function bindEvents() {
   els.playerInput.addEventListener("input", () => {
     els.playerInput.style.height = "auto";
     els.playerInput.style.height = `${Math.min(160, els.playerInput.scrollHeight)}px`;
+    window.requestAnimationFrame(() => {
+      els.chatLog.scrollTop = els.chatLog.scrollHeight;
+    });
   });
 
   els.chatLog.addEventListener("click", async (event) => {
@@ -3321,6 +3360,7 @@ function bindEvents() {
   });
 
   setupDraggableSidebar();
+  setupMobileKeyboardLift();
   els.statusModeButton.addEventListener("click", () => setSidebarMode("status"));
   els.relationModeButton.addEventListener("click", () => setSidebarMode("relation"));
   els.fullscreenButton.addEventListener("click", async () => {
@@ -3489,6 +3529,7 @@ renderAll();
 </script>
 </body>
 </html>
+
 
 
 

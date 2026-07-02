@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
@@ -1422,18 +1422,6 @@ function makeStreamingPreview(content) {
     return storyBodyPlainText(parsed);
   } catch {
     const texts = [];
-    raw.replace(/"time"\s*:\s*"([^"]*)"/g, (_, value) => {
-      texts.push(`时间：${unescapeJsonString(value)}`);
-      return "";
-    });
-    raw.replace(/"place"\s*:\s*"([^"]*)"/g, (_, value) => {
-      texts.push(`地点：${unescapeJsonString(value)}`);
-      return "";
-    });
-    raw.replace(/"weather"\s*:\s*"([^"]*)"/g, (_, value) => {
-      texts.push(`天气：${unescapeJsonString(value)}`);
-      return "";
-    });
     raw.replace(/"speaker"\s*:\s*"([^"]*)"[\s\S]{0,80}?"text"\s*:\s*"([^"]*)"/g, (_, speaker, line) => {
       texts.push(`${unescapeJsonString(speaker)}：「${unescapeJsonString(line)}」`);
       return "";
@@ -2560,23 +2548,13 @@ async function rerollAi(id) {
   const baseEvents = state.events.slice(0, index);
   const previousPlayer = [...baseEvents].reverse().find((item) => item.type === "player");
   const prompt = previousPlayer?.text || event.prompt || "";
-  const avoidText = storyToPlainText(event.story || {});
-  const replacement = {
-    ...event,
-    id: uid("ai"),
-    prompt,
-    source: event.source,
-    variant: (event.variant || 0) + 1,
-    avoidText,
-    status: "loading",
-    story: {
-      env: { time: "生成中", place: "剧情引擎", weather: "等待" },
-      blocks: [{ type: "paragraph", text: "正在输入中……" }]
-    },
-    createdAt: Date.now()
-  };
-  delete replacement.streamText;
-  delete replacement.errorMessage;
+  const avoidText = event.status === "done" ? storyToPlainText(event.story || {}) : "";
+  const replacement = createPendingAiEvent({
+    source: event.source || (previousPlayer ? "player" : "directive"),
+    text: prompt,
+    variant: (event.variant || 0) + 1
+  });
+  replacement.avoidText = avoidText;
   state.events = [...baseEvents, replacement];
   rebuildTimeline();
   renderAll();
@@ -2951,6 +2929,9 @@ rebuildTimeline();
 bindEvents();
 renderAll();
 
+
+
 </script>
 </body>
 </html>
+

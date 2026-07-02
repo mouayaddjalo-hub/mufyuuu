@@ -1415,7 +1415,7 @@ async function generateWithApi({ source, text, previous, variant, eventId, avoid
   let content = extractResponseMessage(data);
   updateStreamingText(eventId, makeStreamingPreview(content) || "正在整理剧情格式……");
   if (!String(content || "").trim()) {
-    throw new Error("API 返回内容为空：完整请求没有返回 message.content，请检查模型名称、账号权限或服务商返回结构。");
+    throw new Error(`API 返回内容为空：完整请求没有返回可用正文。${describeApiEmptyResponse(data)}`);
   }
   if (isNonStoryModelOutput(content)) {
     throw new Error("模型返回了非剧情内容或安全说明，已阻止其进入聊天正文。请检查世界设定/角色年龄/输入内容，避免未成年角色的成人或露骨方向，然后重试。");
@@ -1444,15 +1444,54 @@ async function retryWithoutStream(requestBody, eventId) {
 function extractResponseMessage(data) {
   return firstContentString(
     data?.choices?.[0]?.message?.content,
+    data?.choices?.[0]?.message?.reasoning_content,
+    data?.choices?.[0]?.message?.reasoning,
     data?.choices?.[0]?.delta?.content,
+    data?.choices?.[0]?.text,
     data?.output_text,
     data?.output?.text,
     data?.output?.content,
     data?.output?.choices?.[0]?.message?.content,
+    data?.response?.output_text,
+    data?.response?.text,
+    data?.response?.content,
+    data?.result?.output_text,
+    data?.result?.text,
+    data?.result?.content,
     data?.message?.content,
     data?.content,
     data?.text
   );
+}
+
+function describeApiEmptyResponse(data) {
+  const keys = collectApiKeys(data).slice(0, 18).join(", ") || "无可识别字段";
+  const finish = data?.choices?.[0]?.finish_reason || data?.output?.finish_reason || data?.finish_reason || "";
+  const code = data?.code || data?.error?.code || data?.status_code || "";
+  const message = data?.message || data?.error?.message || data?.msg || "";
+  return [
+    `返回字段：${keys}。`,
+    finish ? `finish_reason：${finish}。` : "",
+    code ? `code：${code}。` : "",
+    message ? `message：${String(message).slice(0, 160)}。` : ""
+  ].filter(Boolean).join("");
+}
+
+function collectApiKeys(value, prefix = "", result = []) {
+  if (!value || typeof value !== "object" || result.length > 30) return result;
+  Object.keys(value).slice(0, 12).forEach((key) => {
+    const path = prefix ? `${prefix}.${key}` : key;
+    result.push(path);
+    const child = value[key];
+    if (child && typeof child === "object") {
+      if (Array.isArray(child)) {
+        if (child[0] && typeof child[0] === "object") collectApiKeys(child[0], `${path}[0]`, result);
+      } else {
+        collectApiKeys(child, path, result);
+      }
+    }
+  });
+  return result;
 }
 
 function firstContentString(...values) {
@@ -3415,6 +3454,7 @@ renderAll();
 </script>
 </body>
 </html>
+
 
 
 

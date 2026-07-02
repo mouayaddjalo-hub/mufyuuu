@@ -1339,10 +1339,11 @@ function buildGenerationSettingContext(includeOriginal) {
   const digest = state.settings.settingDigest || buildSettingDigest(state.settings);
   if (!includeOriginal) return `设定摘要（后续回合只读取摘要，避免重复长设定）：\n${digest}`;
   return [
+    "开局第一回合必须完整读取以下全部设定原文；后续回合只读取摘要、上下文和记忆。",
     `设定摘要：\n${digest}`,
-    `开局设定原文片段：${compactForPrompt(state.settings.world || "未填写", 900)}`,
-    `开局主控片段：${compactForPrompt(formatPlayerProfileForPrompt(), 420)}`,
-    `开局主要NPC片段：${compactForPrompt(state.settings.npcs, 700)}`
+    `开局完整世界观设定原文：${state.settings.world || "未填写"}`,
+    `开局完整主控设定原文：${formatPlayerProfileForPrompt()}`,
+    `开局完整主要NPC设定原文：${JSON.stringify(state.settings.npcs || [])}`
   ].join("\n");
 }
 
@@ -1359,6 +1360,7 @@ function buildStorySystemPrompt({ previous, source, variant, avoidText, fixedEnv
     "你是 MUYU 风格 AI 文字冒险引擎，只返回严格 JSON，禁止 Markdown、代码块、解释、思考过程、政策说明或 JSON 外文字。",
     "JSON 结构固定：{env:{time,place,weather},blocks:[{type:'paragraph',text}或{type:'dialogue',speaker,text}],statuses:[{name,age,appearance,posture,thought,impression}],relations:[{name,description,affection}],memory:'一句话即时记忆'}。",
     "剧情正文只写在 blocks。statuses、relations、memory 只写进对应字段，绝对不能混入 blocks 正文。",
+    fixedEnv ? "本回合是重说，env 必须沿用原时间、地点、天气。" : "env 必须根据本回合当前剧情实时生成 time、place、weather；如果剧情发生地点、时间段、天气感受或场景氛围变化，必须同步更新，禁止机械复用上一回合环境。",
     "绝对禁止代替玩家角色说话、行动、思考、选择或做决定；正文称呼主控必须用第二人称。",
     "paragraph 是自然段，不能写时间地点天气信息条，不能混入引号台词；dialogue 只能放一个角色真正说出口的话，禁止动作、心理、旁白进入 dialogue.text。",
     "statuses 只包含当前在场人物，每回合全新撰写，禁止照抄上一回合。appearance 写即时外形衣着神态；posture 写动作姿势站位；thought 写该角色第一人称心理OS，至少30中文字符；impression 写此刻对“你”的看法。",
@@ -3487,6 +3489,7 @@ renderAll();
 </script>
 </body>
 </html>
+
 
 
 

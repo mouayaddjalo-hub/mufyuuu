@@ -1346,72 +1346,123 @@ function buildGenerationSettingContext(includeOriginal) {
   ].join("\n");
 }
 
+function buildStorySystemPrompt({ previous, source, variant, avoidText, fixedEnv, settingContext }) {
+  const rerollRules = fixedEnv
+    ? [
+      `本次是重说。重说固定环境：${JSON.stringify(fixedEnv)}。env.time、env.place、env.weather 必须原样返回，只重写 blocks、statuses、relations、memory。`,
+      "重说必须明显不同：更换剧情细节、NPC 动作、主要台词措辞和推进方向；禁止复刻上一版。"
+    ]
+    : [
+      "如果是重说或变体生成，必须明显不同，不能只换同义词。"
+    ];
+  return [
+    "你是 MUYU 风格 AI 文字冒险引擎，只返回严格 JSON，禁止 Markdown、代码块、解释、思考过程、政策说明或 JSON 外文字。",
+    "JSON 结构固定：{env:{time,place,weather},blocks:[{type:'paragraph',text}或{type:'dialogue',speaker,text}],statuses:[{name,age,appearance,posture,thought,impression}],relations:[{name,description,affection}],memory:'一句话即时记忆'}。",
+    "剧情正文只写在 blocks。statuses、relations、memory 只写进对应字段，绝对不能混入 blocks 正文。",
+    "绝对禁止代替玩家角色说话、行动、思考、选择或做决定；正文称呼主控必须用第二人称。",
+    "paragraph 是自然段，不能写时间地点天气信息条，不能混入引号台词；dialogue 只能放一个角色真正说出口的话，禁止动作、心理、旁白进入 dialogue.text。",
+    "statuses 只包含当前在场人物，每回合全新撰写，禁止照抄上一回合。appearance 写即时外形衣着神态；posture 写动作姿势站位；thought 写该角色第一人称心理OS，至少30中文字符；impression 写此刻对“你”的看法。",
+    "memory 只用一句中文概括本回合核心：玩家输入、剧情推进、NPC关键反应；禁止复述完整台词。",
+    "世界设定是最高规则；主要NPC出场时参考人设自然演化，不机械复述设定，不跑题，不暴露生成逻辑。",
+    "未成年角色只允许全年龄日常、悬疑、友情、紧张对峙或普通情绪互动，禁止成人化与露骨方向。",
+    ...rerollRules,
+    settingContext,
+    `当前环境：${compactForPrompt(previous.env, fixedEnv ? 180 : 280)}`,
+    `当前记忆摘要：${compactForPrompt(previous.memories, fixedEnv ? 420 : 700)}`,
+    `上一回合人物状态，必须避开完全相同表述：${compactForPrompt(previous.statuses || [], fixedEnv ? 420 : 700)}`,
+    `生成模式：${source === "directive" ? "剧情发展指令扩写，不写玩家反应" : "回应玩家输入，不越权操控玩家"}`,
+    `差异种子：${variant}`,
+    avoidText ? `上一版摘要，重说必须避开：${compactForPrompt(avoidText, 520)}` : ""
+  ].filter(Boolean).join("\n");
+}
+
+function buildChatRequestBody({ messages, variant, fastJson = true }) {
+  const body = {
+    model: state.settings.apiModel,
+    messages,
+    temperature: variant ? 0.92 : 0.68,
+    presence_penalty: variant ? 0.65 : 0.1,
+    frequency_penalty: variant ? 0.45 : 0.05,
+    max_tokens: variant ? 1050 : 1150,
+    stream: false
+  };
+  if (fastJson && isQwenUrl(state.settings.apiUrl)) {
+    body.enable_thinking = false;
+    body.extra_body = { enable_thinking: false };
+  }
+  return body;
+}
+
+function stripProviderHints(body) {
+  const next = { ...body };
+  delete next.enable_thinking;
+  delete next.extra_body;
+  delete next.response_format;
+  return next;
+}
+
+async function postChatCompletion(requestBody, eventId) {
+  const doFetch = async (body) => {
+    const response = await fetchWithTimeout(state.settings.apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${state.settings.apiKey}`
+      },
+      body: JSON.stringify(body)
+    }, getApiTimeout());
+    if (!response.ok) await throwApiHttpError(response);
+    return await readApiResponsePayload(response, eventId);
+  };
+  try {
+    return await doFetch(requestBody);
+  } catch (error) {
+    const message = String(error?.message || error || "");
+    const canRetry = /400|Bad Request|unsupported|unknown|enable_thinking|extra_body|parameter|参数/i.test(message)
+      && (requestBody.enable_thinking !== undefined || requestBody.extra_body !== undefined);
+    if (!canRetry) throw error;
+    updateStreamingText(eventId, "接口不接受低延迟参数，正在自动换成兼容请求……");
+    return await doFetch(stripProviderHints(requestBody));
+  }
+}
+
+async function readApiResponsePayload(response, eventId) {
+  const contentType = response.headers?.get?.("content-type") || "";
+  if (/text\/event-stream|stream/i.test(contentType) && response.body?.getReader) {
+    const content = await readOpenAiStream(response, eventId);
+    return { choices: [{ message: { content } }] };
+  }
+  if (typeof response.json === "function") {
+    try {
+      return await response.json();
+    } catch {
+      // Fall through to text parsing for providers that mislabel JSON.
+    }
+  }
+  if (typeof response.text === "function") {
+    const text = await response.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { choices: [{ message: { content: text } }] };
+    }
+  }
+  return {};
+}
+
 async function generateWithApi({ source, text, previous, variant, eventId, avoidText = "", fixedEnv }) {
   const isOpeningContext = state.events.filter((event) => event.type === "ai" && event.status === "done").length === 0;
   const settingContext = buildGenerationSettingContext(isOpeningContext);
-  const systemPrompt = [
-    "【人物状态栏最高优先级】本回合必须返回 statuses 数组，数组只包含当前在场人物，不保留离场人物。每个人必须包含 name、age、appearance、posture、thought、impression 六项。",
-    "【状态栏实时更新】appearance/posture/thought/impression 必须根据本回合剧情、双方距离、人物动作、氛围和情绪全新撰写，严禁照抄上一回合，严禁连续多回合完全相同，严禁固定模板。",
-    "【状态栏贴合设定】人物状态必须 100% 遵守世界设定；主要 NPC 出场时必须参考玩家填写的人设、性格、思维方式和行事逻辑，但不要复读设定原文，要结合当前剧情自然变化。",
-    "【内心想法格式】thought 必须是该角色本人的第一人称心理 OS，至少 30 个中文字符，像角色在脑子里自言自语；禁止“他觉得、她认为、气氛让他、此人意识到”等第三人称/旁白式心理概括。",
-    "【状态栏字段含义】appearance 写此人本回合即时外形、衣着、神态、外在状态；posture 写此人当下动作、姿势、站位；impression 写此人此刻对“你”的看法、警惕、亲近、好奇或判断。",
-    "【即时记忆规则】本回合必须返回 memory 字段，只写一句中文核心总结，概括玩家本回合输入、剧情推进和 NPC 关键反应；禁止复述完整对话，禁止写“你说：……NPC说：……”这种台词流水账。",
-    `上一回合人物状态（严禁照抄，必须避开完全相同表述）：${compactForPrompt(previous.statuses || [], 1200)}`,
-    "返回 JSON 结构必须为：{env:{time,place,weather}, blocks:[{type:'paragraph',text} 或 {type:'dialogue',speaker,text}], statuses:[{name,age,appearance,posture,thought,impression}], relations:[{name,description,affection}], memory:'一句话即时记忆'}。",
-    "【非剧情输出禁止】禁止输出思考过程、政策说明、安全指南、英文解释、道歉模板、模型限制说明或任何 JSON 之外的文字；即使需要避开敏感内容，也必须改写为安全的全年龄剧情 JSON。",
-    "【未成年角色安全边界】如果人物未满 18 岁，剧情只允许全年龄的日常、悬疑、友情、紧张对峙或普通情绪互动；禁止任何性暗示、露骨描写、成人关系推进、挑逗化描写。遇到相关输入时，保持边界并自然转向安全剧情，仍返回规定 JSON。",
-    "你是 MUYU 风格 AI 文字冒险引擎。",
-    "绝对禁止代替玩家角色说话、做动作或做决定；只能描写环境、推动剧情、扮演 NPC。",
-    "主控姓名只作为底层角色识别；正文中称呼主控时必须使用第二人称，不能直接写出主控姓名来替代玩家。",
-    "返回严格 JSON，不要 Markdown，不要代码块。结构：env{time,place,weather}, blocks 数组，元素为 {type:'paragraph',text} 或 {type:'dialogue',speaker,text}。",
-    "剧情正文必须是自然段，不能在一句话中间硬换行。每个 dialogue 只能包含一个角色的一句或一段台词。",
-    "dialogue.text 只能写角色真正说出口的话，禁止放入动作描写、心理描写、神态描写或旁白。",
-    "人物描写必须读取设定后自然提炼，不能整段照抄。外形要结合当前场景和情绪变化重新描写，NPC 行为要受记忆影响但不能 OOC。",
-    "NPC 必须像真实人物一样拥有稳定性格、欲望和顾虑；剧情发展要受到在场人物状态影响，例如开朗爱做饭的邻居会自然想到聊天、送食物或邀请吃饭，而不是只围绕抽象线索判断。",
-    "禁止在正文或人物状态里暴露生成逻辑、设定提炼、系统规则、模型限制等 AI 感文字。",
-    "如果出现人物说话，必须单独使用 dialogue 块；paragraph 里不得混入引号台词，也不得把台词和旁白挤在同一段。",
-    "禁止在 paragraph 正文里写“时间：地点：天气：”这种信息条内容；环境信息只能放在 env 字段。",
-    fixedEnv ? `本次是重说：env.time、env.place、env.weather 必须原样返回 ${JSON.stringify(fixedEnv)}，禁止改动时间、地点、天气；只重写 blocks 剧情文本、statuses、relations、memory。` : "",
-    fixedEnv ? "重说时必须生成明显不同的新版本：更换剧情细节、NPC 动作、主要台词措辞和剧情推进方向；不能只替换同义词，不能与上一版大差不差；但时间、地点、天气必须保持不变。" : "重说时必须生成明显不同的新版本：更换至少两个环境细节、一个 NPC 动作、主要台词措辞和剧情推进方向；不能只替换同义词，不能与上一版大差不差。",
-    "世界设定是最高优先级硬规则：所有场景、人物、行为、心理、社会规则、时代背景、势力关系、叙事尺度、对话风格都必须遵循设定摘要，禁止私自修改、增删、篡改或混搭无关题材、时代、规则。",
-    "必须理解设定并以设定为圆心自然发展叙事世界，不要生硬复述设定，但任何剧情推进都不能与设定冲突。",
-    "如果主要 NPC 出场，必须参照其人物设定里的性格、思维方式、行事逻辑和关系背景发展；禁止死套固定模板，禁止每回合机械重复设定，必须结合当前剧情和记忆自然演化。",
-    "人物状态里的内心想法必须是该角色本人第一人称心理 OS，用角色自己的口吻碎碎念；禁止第三人称心理概括、上帝视角解说、规则说明。",
-    "记忆是全局连续事实：即时记忆、长期记忆、整合记忆都必须永久生效；NPC 必须记得记忆里的事件、对话、人物印象，并在后续内心、对话、行为逻辑中持续体现，禁止失忆、忘记前情或人设割裂。",
-    settingContext,
-    "主要 NPC 是参考资料：不需要立刻全部出场，也不需要每回合都出场；可以自然引入新 NPC 或让场景中人物随机变化。",
-    `当前环境：${compactForPrompt(previous.env, 500)}`,
-    `当前记忆摘要：${compactForPrompt(previous.memories, 900)}`,
-    `生成模式：${source === "directive" ? "剧情发展指令扩写，不写玩家反应" : "回应玩家输入，不越权操控玩家"}`,
-    `重说差异种子：${variant}`,
-    avoidText ? `上一版剧情摘要，重说时必须避开这些内容和措辞：${avoidText.slice(0, 900)}` : ""
-  ].join("\n");
+  const systemPrompt = buildStorySystemPrompt({ previous, source, variant, avoidText, fixedEnv, settingContext });
 
   const messages = [
     { role: "system", content: systemPrompt },
     { role: "user", content: text }
   ];
-  const requestBody = {
-    model: state.settings.apiModel,
-    messages,
-    temperature: variant ? 0.95 : 0.75,
-    presence_penalty: variant ? 0.8 : 0.2,
-    frequency_penalty: variant ? 0.7 : 0.1,
-    max_tokens: 1400,
-    stream: false
-  };
+  const requestBody = buildChatRequestBody({ messages, variant, fastJson: true });
 
-  updateStreamingText(eventId, "正在请求完整剧情……");
-  const response = await fetchWithTimeout(state.settings.apiUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${state.settings.apiKey}`
-    },
-    body: JSON.stringify(requestBody)
-  }, getApiTimeout());
-  if (!response.ok) await throwApiHttpError(response);
-  const data = await response.json();
+  updateStreamingText(eventId, fixedEnv ? "正在重新生成本回合剧情……" : "正在请求剧情……");
+  const data = await postChatCompletion(requestBody, eventId);
   let content = extractResponseMessage(data);
   updateStreamingText(eventId, makeStreamingPreview(content) || "正在整理剧情格式……");
   if (!String(content || "").trim()) {
@@ -1426,16 +1477,7 @@ async function generateWithApi({ source, text, previous, variant, eventId, avoid
 
 async function retryWithoutStream(requestBody, eventId) {
   updateStreamingText(eventId, "流式返回为空，正在重新获取完整剧情……");
-  const response = await fetchWithTimeout(state.settings.apiUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${state.settings.apiKey}`
-    },
-    body: JSON.stringify({ ...requestBody, stream: false })
-  }, getApiTimeout());
-  if (!response.ok) await throwApiHttpError(response);
-  const data = await response.json();
+  const data = await postChatCompletion({ ...requestBody, stream: false }, eventId);
   const content = extractResponseMessage(data);
   updateStreamingText(eventId, makeStreamingPreview(content) || "正在整理剧情格式……");
   return content;
@@ -1526,9 +1568,7 @@ async function generateMergedMemoryWithApi(selected) {
     "禁止原文拼接，禁止逐条罗列，必须压缩核心事件、人物互动、NPC反应、关系变化和关键设定。",
     "只输出一段中文长期记忆正文，不要标题、编号、Markdown、解释或引号。",
     "这条记忆会永久影响后续剧情、NPC内心、对话和行为，所以必须保留会影响未来反应的事实。",
-    `世界设定：${state.settings.world || "未填写"}`,
-    `主控设定：${formatPlayerProfileForPrompt()}`,
-    `主要 NPC：${JSON.stringify(state.settings.npcs)}`
+    buildGenerationSettingContext(false)
   ].join("\n");
   const response = await fetchWithTimeout(state.settings.apiUrl, {
     method: "POST",
@@ -2187,28 +2227,21 @@ async function testApiConnection() {
   }
   showApiStatus("正在检验连接和剧情格式...", "neutral");
   try {
-    const response = await fetchWithTimeout(state.settings.apiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${state.settings.apiKey}`
-      },
-      body: JSON.stringify({
-        model: state.settings.apiModel,
-        messages: [
-          {
-            role: "system",
-            content: "你是连通性测试助手。请只回复一个最短 JSON：{\"ok\":true}"
-          },
-          { role: "user", content: "ping" }
-        ],
-        max_tokens: 32,
-        temperature: 0,
-        stream: false
-      })
-    }, getQuickApiTimeout());
-    if (!response.ok) await throwApiHttpError(response);
-    const data = await response.json();
+    const data = await postChatCompletion({
+      model: state.settings.apiModel,
+      messages: [
+        {
+          role: "system",
+          content: "你是文字冒险接口连通性测试助手。请只回复严格 JSON：{\"env\":{\"time\":\"测试\",\"place\":\"连接检查\",\"weather\":\"晴\"},\"blocks\":[{\"type\":\"paragraph\",\"text\":\"接口连接正常。\"}],\"statuses\":[],\"relations\":[],\"memory\":\"完成一次接口连通性检查。\"}"
+        },
+        { role: "user", content: "ping" }
+      ],
+      max_tokens: 180,
+      temperature: 0,
+      stream: false,
+      enable_thinking: false,
+      extra_body: isQwenUrl(state.settings.apiUrl) ? { enable_thinking: false } : undefined
+    }, null);
     const content = extractResponseMessage(data);
     try {
       const parsed = parseApiJsonContent(content);
@@ -3454,6 +3487,7 @@ renderAll();
 </script>
 </body>
 </html>
+
 
 
 

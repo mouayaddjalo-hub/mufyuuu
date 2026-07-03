@@ -28,6 +28,7 @@
   --small-shadow: 0 8px 18px rgba(203, 91, 145, 0.16);
   --font-round: "Arial Rounded MT Bold", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
   --keyboard-offset: 0px;
+  --keyboard-shift: 0px;
 }
 
 * { box-sizing: border-box; }
@@ -369,7 +370,7 @@ body.page-open .side-drawer {
 .button-row { display: flex; gap: 8px; flex-wrap: wrap; padding-top: 8px; border-top: 2px dashed rgba(244,166,202,.42); }
 .message-action { padding: 7px 13px; }
 
-.input-bar { position: fixed; z-index: 30; left: 50%; bottom: calc(max(10px, env(safe-area-inset-bottom)) + var(--keyboard-offset)); transform: translateX(-50%); width: calc(100% - 12px); max-width: 940px; display: flex; align-items: flex-end; gap: 10px; padding: 12px; border-radius: 30px; transition: bottom 180ms ease; }
+.input-bar { position: fixed; z-index: 30; left: 50%; bottom: max(10px, env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(calc(-1 * var(--keyboard-shift))); width: calc(100% - 12px); max-width: 940px; display: flex; align-items: flex-end; gap: 10px; padding: 12px; border-radius: 30px; transition: transform 180ms ease; will-change: transform; }
 .input-bar textarea { min-height: 46px; max-height: 160px; resize: none; line-height: 1.55; }
 body.keyboard-open .input-bar { box-shadow: 0 10px 30px rgba(203, 91, 145, 0.24), 0 0 0 4px rgba(255,255,255,0.28); }
 
@@ -469,7 +470,7 @@ body.keyboard-open .input-bar { box-shadow: 0 10px 30px rgba(203, 91, 145, 0.24)
   .send-button,
   .ghost-button,
   .danger-button { padding: 7px 10px; min-height: 36px; font-size: 14px; }
-  .input-bar { bottom: calc(max(8px, env(safe-area-inset-bottom)) + var(--keyboard-offset)); width: calc(100% - 12px); gap: 7px; padding: 8px; border-radius: 26px; }
+  .input-bar { bottom: max(8px, env(safe-area-inset-bottom)); width: calc(100% - 12px); gap: 7px; padding: 8px; border-radius: 26px; }
   .chat-log { width: calc(100% - 10px); padding-top: calc(58px + env(safe-area-inset-top)); padding-bottom: calc(104px + env(safe-area-inset-bottom) + var(--keyboard-offset)); }
   .empty-state { margin-top: 18px; padding: 16px; border-radius: 20px; }
   .round-button { flex-basis: 40px; width: 40px; height: 40px; font-size: 22px; }
@@ -1362,6 +1363,7 @@ function buildStorySystemPrompt({ previous, source, variant, avoidText, fixedEnv
     "你是 MUYU 风格 AI 文字冒险引擎，只返回严格 JSON，禁止 Markdown、代码块、解释、思考过程、政策说明或 JSON 外文字。",
     "JSON 结构固定：{env:{time,place,weather},blocks:[{type:'paragraph',text}或{type:'dialogue',speaker,text}],statuses:[{name,age,appearance,posture,thought,impression}],relations:[{name,description,affection}],memory:'一句话即时记忆'}。",
     "剧情正文只写在 blocks。statuses、relations、memory 只写进对应字段，绝对不能混入 blocks 正文。",
+    "强制长度：每回合 blocks 里的剧情正文总量至少 500 个中文字符，不包含 env、statuses、relations、memory；至少写 4 个自然段或 3 个自然段加 1 个 dialogue，剧情要有细节、氛围、NPC反应和推进。",
     fixedEnv ? "本回合是重说，env 必须沿用原时间、地点、天气。" : "env 必须根据本回合当前剧情实时生成 time、place、weather；如果剧情发生地点、时间段、天气感受或场景氛围变化，必须同步更新，禁止机械复用上一回合环境。",
     "绝对禁止代替玩家角色说话、行动、思考、选择或做决定；正文称呼主控必须用第二人称。",
     "paragraph 是自然段，不能写时间地点天气信息条，不能混入引号台词；dialogue 只能放一个角色真正说出口的话，禁止动作、心理、旁白进入 dialogue.text。",
@@ -1387,7 +1389,7 @@ function buildChatRequestBody({ messages, variant, fastJson = true }) {
     temperature: variant ? 0.92 : 0.68,
     presence_penalty: variant ? 0.65 : 0.1,
     frequency_penalty: variant ? 0.45 : 0.05,
-    max_tokens: variant ? 1050 : 1150,
+    max_tokens: variant ? 2300 : 2400,
     stream: false
   };
   if (fastJson && isQwenUrl(state.settings.apiUrl)) {
@@ -1475,8 +1477,31 @@ async function generateWithApi({ source, text, previous, variant, eventId, avoid
   if (isNonStoryModelOutput(content)) {
     throw new Error("模型返回了非剧情内容或安全说明，已阻止其进入聊天正文。请检查世界设定/角色年龄/输入内容，避免未成年角色的成人或露骨方向，然后重试。");
   }
-  const parsed = parseApiJsonContent(content);
-  return normalizeStory(parsed, previous, text, variant, fixedEnv);
+  try {
+    const parsed = parseApiJsonContent(content);
+    return normalizeStory(parsed, previous, text, variant, fixedEnv);
+  } catch (error) {
+    if (!/500/.test(String(error?.message || ""))) throw error;
+    updateStreamingText(eventId, "剧情正文少于 500 字，正在自动补写完整版本……");
+    const retryBody = {
+      ...requestBody,
+      temperature: Math.max(requestBody.temperature || 0.7, 0.82),
+      max_tokens: Math.max(requestBody.max_tokens || 0, 2400),
+      messages: [
+        ...messages,
+        { role: "assistant", content },
+        { role: "user", content: "上一版剧情正文少于500字。请严格按同一JSON结构重写本回合，blocks剧情正文至少500个中文字符，不要增加正文外说明。" }
+      ]
+    };
+    const retryData = await postChatCompletion(retryBody, eventId);
+    const retryContent = extractResponseMessage(retryData);
+    updateStreamingText(eventId, makeStreamingPreview(retryContent) || "正在整理补写后的剧情格式……");
+    if (!String(retryContent || "").trim()) {
+      throw new Error(`API 返回内容为空：补写请求没有返回可用正文。${describeApiEmptyResponse(retryData)}`);
+    }
+    const retryParsed = parseApiJsonContent(retryContent);
+    return normalizeStory(retryParsed, previous, text, variant, fixedEnv);
+  }
 }
 
 async function retryWithoutStream(requestBody, eventId) {
@@ -2305,6 +2330,9 @@ function normalizeStory(story, previous, text, variant, fixedEnv) {
   if (!filteredBlocks.length) {
     throw new Error("API 返回内容为空或格式不符合要求，请调整模型输出格式。");
   }
+  if (countStoryTextChars(filteredBlocks) < 500) {
+    throw new Error("API 返回的剧情正文少于 500 字，请重新生成更完整的剧情。");
+  }
 
   return {
     env: safeEnv,
@@ -2313,6 +2341,14 @@ function normalizeStory(story, previous, text, variant, fixedEnv) {
     relations: normalizeStoryRelations(story?.relations),
     memory: cleanMemorySummary(story?.memory || "")
   };
+}
+
+function countStoryTextChars(blocks) {
+  return (blocks || [])
+    .map((block) => block?.text || "")
+    .join("")
+    .replace(/\s+/g, "")
+    .length;
 }
 
 function normalizeStoryStatuses(statuses) {
@@ -3275,28 +3311,32 @@ function setupDraggableSidebar() {
 
 function setupMobileKeyboardLift() {
   const root = document.documentElement;
-  let stableHeight = Math.max(window.innerHeight || 0, root.clientHeight || 0, window.visualViewport?.height || 0);
+  const currentViewportHeight = () => window.visualViewport?.height || window.innerHeight || root.clientHeight || 0;
+  let stableHeight = currentViewportHeight();
+  let focusStartedAt = 0;
   const isMobileLike = () => window.innerWidth <= 820 || window.matchMedia?.("(pointer: coarse)")?.matches;
-  const visibleHeight = () => Math.max(window.visualViewport?.height || 0, window.innerHeight || 0, root.clientHeight || 0);
   const refreshStableHeight = () => {
     if (document.activeElement !== els.playerInput) {
-      stableHeight = Math.max(stableHeight, visibleHeight());
+      stableHeight = Math.max(stableHeight, currentViewportHeight());
     }
   };
   const update = (forceFallback = false) => {
     const viewport = window.visualViewport;
     let offset = 0;
+    const currentHeight = currentViewportHeight();
     if (viewport) {
-      const byViewport = Math.max(0, stableHeight - viewport.height - viewport.offsetTop);
-      const byWindow = Math.max(0, stableHeight - (window.innerHeight || viewport.height));
-      const hidden = Math.max(byViewport, byWindow);
+      const hidden = Math.max(0, stableHeight - currentHeight - Math.max(0, viewport.offsetTop || 0));
       offset = hidden > 80 ? hidden : 0;
     }
     const focused = document.activeElement === els.playerInput;
-    if (focused && !offset && forceFallback && document.fullscreenElement && isMobileLike()) {
-      offset = Math.min(380, Math.max(230, Math.round(stableHeight * 0.42)));
+    const recentlyFocused = Date.now() - focusStartedAt < 1400;
+    const viewportLooksOpen = currentHeight < stableHeight - 80;
+    if (focused && !offset && forceFallback && recentlyFocused && document.fullscreenElement && isMobileLike() && !viewportLooksOpen) {
+      offset = Math.min(420, Math.max(280, Math.round(stableHeight * 0.46)));
     }
-    root.style.setProperty("--keyboard-offset", focused && offset ? `${Math.round(offset)}px` : "0px");
+    const value = focused && offset ? `${Math.round(offset)}px` : "0px";
+    root.style.setProperty("--keyboard-offset", value);
+    root.style.setProperty("--keyboard-shift", value);
     document.body.classList.toggle("keyboard-open", focused && offset > 0);
     if (focused) {
       window.requestAnimationFrame(() => {
@@ -3313,11 +3353,13 @@ function setupMobileKeyboardLift() {
   };
 
   els.playerInput.addEventListener("focus", () => {
-    stableHeight = Math.max(stableHeight, visibleHeight());
+    focusStartedAt = Date.now();
+    stableHeight = Math.max(stableHeight, currentViewportHeight());
     updateSoon();
   });
   els.playerInput.addEventListener("blur", () => {
     root.style.setProperty("--keyboard-offset", "0px");
+    root.style.setProperty("--keyboard-shift", "0px");
     document.body.classList.remove("keyboard-open");
     window.setTimeout(refreshStableHeight, 120);
   });
@@ -3326,11 +3368,11 @@ function setupMobileKeyboardLift() {
     update(document.fullscreenElement);
   });
   window.addEventListener("orientationchange", () => window.setTimeout(() => {
-    stableHeight = visibleHeight();
+    stableHeight = currentViewportHeight();
     update(document.fullscreenElement);
   }, 250));
   document.addEventListener("fullscreenchange", () => {
-    stableHeight = Math.max(stableHeight, visibleHeight());
+    stableHeight = currentViewportHeight();
     updateSoon();
   });
   if (window.visualViewport) {
@@ -3561,6 +3603,8 @@ renderAll();
 </script>
 </body>
 </html>
+
+
 
 
 

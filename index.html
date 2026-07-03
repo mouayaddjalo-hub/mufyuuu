@@ -3316,6 +3316,7 @@ function setupMobileKeyboardLift() {
   const viewportBottom = () => viewportTop() + currentViewportHeight();
   let stableHeight = currentViewportHeight();
   let focusStartedAt = 0;
+  let fullscreenCalibrator = 0;
   const isMobileLike = () => window.innerWidth <= 820 || window.matchMedia?.("(pointer: coarse)")?.matches;
   const resetKeyboardVars = () => {
     root.style.setProperty("--keyboard-offset", "0px");
@@ -3366,6 +3367,28 @@ function setupMobileKeyboardLift() {
       els.chatLog.scrollTop = els.chatLog.scrollHeight;
     });
   };
+  const stopFullscreenCalibrator = () => {
+    if (fullscreenCalibrator) window.clearInterval(fullscreenCalibrator);
+    fullscreenCalibrator = 0;
+  };
+  const startFullscreenCalibrator = () => {
+    if (fullscreenCalibrator || !document.fullscreenElement || !isMobileLike()) return;
+    fullscreenCalibrator = window.setInterval(() => {
+      if (!document.fullscreenElement || document.activeElement !== els.playerInput) {
+        stopFullscreenCalibrator();
+        resetKeyboardVars();
+        return;
+      }
+      const currentHeight = currentViewportHeight();
+      const keyboardOpen = currentHeight < stableHeight - 80;
+      if (!keyboardOpen) {
+        resetKeyboardVars();
+        stableHeight = Math.max(stableHeight, currentHeight);
+        return;
+      }
+      update(false);
+    }, 180);
+  };
   const updateSoon = () => {
     update(false);
     [80, 180, 360, 700].forEach((delay, index) => {
@@ -3376,9 +3399,11 @@ function setupMobileKeyboardLift() {
   els.playerInput.addEventListener("focus", () => {
     focusStartedAt = Date.now();
     stableHeight = Math.max(stableHeight, currentViewportHeight());
+    startFullscreenCalibrator();
     updateSoon();
   });
   els.playerInput.addEventListener("blur", () => {
+    stopFullscreenCalibrator();
     resetKeyboardVars();
     window.setTimeout(refreshStableHeight, 120);
   });
@@ -3392,6 +3417,12 @@ function setupMobileKeyboardLift() {
   }, 250));
   document.addEventListener("fullscreenchange", () => {
     stableHeight = currentViewportHeight();
+    if (!document.fullscreenElement) {
+      stopFullscreenCalibrator();
+      resetKeyboardVars();
+      return;
+    }
+    startFullscreenCalibrator();
     updateSoon();
   });
   document.addEventListener("visibilitychange", () => {
@@ -3625,6 +3656,7 @@ renderAll();
 </script>
 </body>
 </html>
+
 
 
 

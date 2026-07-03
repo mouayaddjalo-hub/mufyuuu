@@ -954,10 +954,11 @@ function renderAiMessage(event) {
       : story.blocks
     .map((block) => {
       if (block.type === "dialogue") {
+        const line = formatDialogueLine(block.text);
         return `
           <div class="dialogue-box">
             <span class="dialogue-speaker">对话方框 - ${escapeHtml(block.speaker)}</span>
-            <div class="dialogue-text">"${escapeHtml(block.text)}"</div>
+            <div class="dialogue-text">"${escapeHtml(line)}"</div>
           </div>
         `;
       }
@@ -1346,13 +1347,19 @@ function compactForPrompt(value, limit = 1000) {
 
 function buildGenerationSettingContext(includeOriginal) {
   const digest = state.settings.settingDigest || buildSettingDigest(state.settings);
-  if (!includeOriginal) return `设定摘要（后续回合只读取摘要，避免重复长设定）：\n${digest}`;
+  const npcOriginal = `主要NPC完整设定原文（每回合必须用于校准 statuses、relations、NPC对话和行为，不可违背）：${JSON.stringify(state.settings.npcs || [])}`;
+  if (!includeOriginal) {
+    return [
+      `设定摘要（后续回合读取摘要、上下文和记忆）：\n${digest}`,
+      npcOriginal
+    ].join("\n");
+  }
   return [
     "开局第一回合必须完整读取以下全部设定原文；后续回合只读取摘要、上下文和记忆。",
     `设定摘要：\n${digest}`,
     `开局完整世界观设定原文：${state.settings.world || "未填写"}`,
     `开局完整主控设定原文：${formatPlayerProfileForPrompt()}`,
-    `开局完整主要NPC设定原文：${JSON.stringify(state.settings.npcs || [])}`
+    npcOriginal
   ].join("\n");
 }
 
@@ -1372,11 +1379,15 @@ function buildStorySystemPrompt({ previous, source, variant, avoidText, fixedEnv
     "剧情正文只写在 blocks。statuses、relations、memory 只写进对应字段，绝对不能混入 blocks 正文。",
     "强制长度：每回合 blocks 里的剧情正文总量至少 300 个中文字符，不包含 env、statuses、relations、memory；至少写 3 个自然段或 2 个自然段加 1 个 dialogue，剧情要有细节、氛围、NPC反应和推进。",
     fixedEnv ? "本回合是重说，env 必须沿用原时间、地点、天气。" : "env 必须根据本回合当前剧情实时生成 time、place、weather；如果剧情发生地点、时间段、天气感受或场景氛围变化，必须同步更新，禁止机械复用上一回合环境。",
-    `绝对禁止代替玩家角色说话、行动、思考、选择或做决定。正文叙事描写主控动作、外貌、心理时使用第二人称“你”；NPC对话、NPC内心想法、人物状态 impression、关系和 memory 中必须称呼主控为“${playerName}”，禁止把“你”当成主控姓名，禁止“这位你”“那个你”。`,
+    `绝对禁止代替玩家角色说话、行动、思考、选择或做决定。正文叙事描写主控动作、外貌、心理时使用第二人称“你”；这里的“你”只是叙事代词，不是主控姓名。NPC对话、NPC内心想法、人物状态 impression、关系和 memory 中必须称呼主控为档案姓名“${playerName}”，禁止把“你”当成主控姓名，禁止“这位你”“那个你”，NPC开口直接叫人时必须叫“${playerName}”。`,
     "台词判定硬规则：只有被英文双引号 \"\" 完整包裹的文本才是角色口头台词，才允许进入 dialogue.text；未被英文双引号包裹的内容一律是场景叙事、动作、神态、外形或心理，绝对不能当台词。所有角色开口台词必须使用英文双引号，禁止单引号；若生成中文引号或单引号，必须视为需要转成英文双引号的台词。",
     "dialogue.speaker 只能填写当前真实出场角色的完整官方姓名。声线、语气、动作、旁白描述（例如“低得像从喉底碾出来的”“轻声”“沙哑地”）绝对不是角色名，必须放在 paragraph 叙事里，禁止写进 speaker，禁止生成对应人物状态。",
     "paragraph 是自然段，不能写时间地点天气信息条，不能混入英文双引号台词；dialogue 只能放一个角色真正说出口的话，禁止动作、心理、旁白进入 dialogue.text。",
+    `主控角色“${playerName}”是玩家代入角色，不是 NPC。statuses 和 relations 绝对不能包含“${playerName}”或“你”；只能写 NPC 对${playerName}的状态、想法、印象和关系。`,
     `statuses 只包含当前在场人物，每回合全新撰写，禁止照抄上一回合。主要NPC出场时必须精准读取预设人设，不得只匹配名字后随机跳变。appearance 写即时外形衣着神态；posture 写动作姿势站位；thought 写该角色贴合性格的第一人称心理OS，至少30中文字符，禁止干巴巴分析线索；impression 写此刻对${playerName}的看法。`,
+    "statuses 必须直接引用本回合 blocks 里已经发生的具体动作、台词、危险、物件或距离变化，不能写成可套用到任意剧情的通用模板。",
+    "statuses.name 必须是真实在场角色的姓名或明确称谓；如果主要NPC设定里有对应人物，必须使用设定姓名，禁止用“热心邻居、谨慎旁观者、值夜管理员、安静陌生人”等占位名替代已设定 NPC。",
+    "禁止在 statuses 和 relations 中出现兜底话术，例如“仍在观察意图与边界”“随着剧情变化”“保持观察关系”“根据设定”“现场局势继续推进”；缺少把握时也必须依据当前剧情和人设写出具体反应。",
     `memory 只用一句中文凝练叙事总结本回合发生了什么，格式类似“深夜走廊，${playerName}刚搬进公寓试图开门时，Maxim从背后靠近并提醒锁芯异常。”；禁止“你进行了…剧情核心是…”“关键反应是…”等拆解话术，禁止复述完整台词。`,
     "世界设定是最高规则；主要NPC出场时参考人设自然演化，不机械复述设定，不跑题，不暴露生成逻辑。",
     "未成年角色只允许全年龄日常、悬疑、友情、紧张对峙或普通情绪互动，禁止成人化与露骨方向。",
@@ -1488,8 +1499,33 @@ async function generateWithApi({ source, text, previous, variant, eventId, avoid
   }
   try {
     const parsed = parseApiJsonContent(content);
-    return normalizeStory(parsed, previous, text, variant, fixedEnv);
+    const story = normalizeStory(parsed, previous, text, variant, fixedEnv);
+    assertStoryStatusQuality(story);
+    return story;
   } catch (error) {
+    if (/人物状态/.test(String(error?.message || ""))) {
+      updateStreamingText(eventId, "人物状态不够贴合，正在按本回合剧情重新校准……");
+      const retryBody = {
+        ...requestBody,
+        temperature: Math.min(Math.max(requestBody.temperature || 0.7, 0.76), 0.86),
+        max_tokens: Math.max(requestBody.max_tokens || 0, 1900),
+        messages: [
+          ...messages,
+          { role: "assistant", content },
+          { role: "user", content: `上一版的 statuses/relations 存在兜底、缺字段或与剧情/人设不贴合的问题。请保持同一回合剧情事件，不要写解释，只返回完整严格 JSON；blocks 可以按原剧情重写但不能变短；statuses 必须逐名匹配真实在场人物，直接引用本回合具体剧情细节，完全符合主要 NPC 原设定，禁止占位人物和“观察/边界/剧情变化”等通用话术。` }
+        ]
+      };
+      const retryData = await postChatCompletion(retryBody, eventId);
+      const retryContent = extractResponseMessage(retryData);
+      updateStreamingText(eventId, makeStreamingPreview(retryContent) || "正在整理校准后的人物状态……");
+      if (!String(retryContent || "").trim()) {
+        throw new Error(`API 返回内容为空：人物状态校准请求没有返回可用正文。${describeApiEmptyResponse(retryData)}`);
+      }
+      const retryParsed = parseApiJsonContent(retryContent);
+      const retryStory = normalizeStory(retryParsed, previous, text, variant, fixedEnv);
+      assertStoryStatusQuality(retryStory);
+      return retryStory;
+    }
     if (!/300/.test(String(error?.message || ""))) throw error;
     updateStreamingText(eventId, "剧情正文少于 300 字，正在自动补写完整版本……");
     const retryBody = {
@@ -1509,7 +1545,9 @@ async function generateWithApi({ source, text, previous, variant, eventId, avoid
       throw new Error(`API 返回内容为空：补写请求没有返回可用正文。${describeApiEmptyResponse(retryData)}`);
     }
     const retryParsed = parseApiJsonContent(retryContent);
-    return normalizeStory(retryParsed, previous, text, variant, fixedEnv);
+    const retryStory = normalizeStory(retryParsed, previous, text, variant, fixedEnv);
+    assertStoryStatusQuality(retryStory);
+    return retryStory;
   }
 }
 
@@ -2314,7 +2352,7 @@ function normalizeStory(story, previous, text, variant, fixedEnv) {
         mixedDialogue.forEach((item) => normalizedBlocks.push(item));
         return;
       }
-      const cleaned = cleanDialogueText(block.text || "");
+      const cleaned = cleanDialogueText(block.text || "", { forceDialogue: true });
       if (cleaned.aside) {
         normalizedBlocks.push({
           type: "paragraph",
@@ -2325,7 +2363,7 @@ function normalizeStory(story, previous, text, variant, fixedEnv) {
         normalizedBlocks.push({
           type: "dialogue",
           speaker: String(block.speaker || chooseNpc(text, variant).name),
-          text: sanitizeNoPlayerControl(cleaned.line, { narrative: false })
+          text: sanitizeNoPlayerControl(formatDialogueLine(cleaned.line), { narrative: false })
         });
       } else if (!cleaned.aside && rawDialogueText.trim()) {
         normalizedBlocks.push({
@@ -2370,6 +2408,42 @@ function countStoryTextChars(blocks) {
     .length;
 }
 
+function assertStoryStatusQuality(story) {
+  const statuses = Array.isArray(story?.statuses) ? story.statuses : [];
+  const relations = Array.isArray(story?.relations) ? story.relations : [];
+  const storyText = getStoryPlainText(story);
+  const hasNamedNpcInScene = (state.settings.npcs || []).some((npc) => {
+    const name = String(npc.name || "").trim();
+    return name && getNameAliases(name).some((alias) => alias && storyText.includes(alias));
+  });
+  const hasDialogue = (story?.blocks || []).some((block) => block.type === "dialogue" && block.speaker);
+  if (!statuses.length && (hasNamedNpcInScene || hasDialogue)) {
+    throw new Error("人物状态缺失：本回合已有在场人物，但 statuses 为空。");
+  }
+  statuses.forEach((status) => {
+    const name = cleanStatusText(status?.name);
+    if (isPlayerCharacterName(name)) throw new Error("人物状态不能包含主控角色。");
+    if (!name || isInvalidCharacterName(name)) throw new Error("人物状态缺少真实角色名。");
+    ["appearance", "posture", "thought", "impression"].forEach((field) => {
+      const value = field === "thought" ? cleanThoughtText(status?.[field]) || cleanStatusText(status?.[field]) : cleanStatusText(status?.[field]);
+      if (!value || isLowQualityStatusText(field, value)) {
+        throw new Error(`人物状态字段 ${field} 过于兜底或缺少剧情细节。`);
+      }
+    });
+    if (isAmbientPlaceholderName(name) && hasNamedNpcInScene && !storyText.includes(name)) {
+      throw new Error("人物状态使用了占位角色名替代主要 NPC。");
+    }
+  });
+  relations.forEach((relation) => {
+    const name = cleanStatusText(relation?.name);
+    if (isPlayerCharacterName(name)) throw new Error("人物关系不能包含主控角色。");
+    const description = cleanStatusText(relation?.description);
+    if (description && isLowQualityStatusText("relation", description)) {
+      throw new Error("人物关系描述过于兜底。");
+    }
+  });
+}
+
 function normalizeStoryStatuses(statuses, blocks = [], prompt = "", variant = 0, previous = null) {
   if (!Array.isArray(statuses)) return [];
   const resolver = createCharacterNameResolver(blocks, prompt, variant, previous);
@@ -2384,7 +2458,7 @@ function normalizeStoryStatuses(statuses, blocks = [], prompt = "", variant = 0,
       thought: cleanThoughtText(item?.thought) || cleanStatusText(item?.thought),
       impression: cleanStatusText(item?.impression)
     };
-  }).filter((item) => item.name && (item.appearance || item.thought || item.posture || item.impression));
+  }).filter((item) => item.name && !isPlayerCharacterName(item.name) && (item.appearance || item.thought || item.posture || item.impression));
 }
 
 function normalizeStoryRelations(relations, blocks = [], prompt = "", variant = 0, previous = null) {
@@ -2398,25 +2472,28 @@ function normalizeStoryRelations(relations, blocks = [], prompt = "", variant = 
       description: cleanStatusText(item?.description),
       affection: Number.isFinite(affection) ? clamp(affection, -100, 100) : 0
     };
-  }).filter((item) => item.name && item.description);
+  }).filter((item) => item.name && !isPlayerCharacterName(item.name) && item.description);
 }
 
 function splitParagraphAndDialogue(text, prompt, variant) {
   const raw = normalizeDialogueQuotes(stripInlineEnv(String(text || "").replace(/\s*\n+\s*/g, " ").trim()));
   if (!raw) return [];
-  const pattern = /([A-Za-z][A-Za-z .'-]{0,30}|[\u4e00-\u9fa5A-Za-z0-9·]{1,16})[：:]\s*"([^"]+)"/g;
+  const pattern = /([A-Za-z][A-Za-z .'-]{0,30}|[\u4e00-\u9fa5A-Za-z0-9·]{1,16})[：:]\s*"([^"]+)"|([A-Za-z][A-Za-z .'-]{1,30}|[\u4e00-\u9fa5A-Za-z0-9·]{2,16})[：:]\s*([^。！？!?；;]{2,80}(?:[。！？!?]?))/g;
   const blocks = [];
   let last = 0;
   let match;
   while ((match = pattern.exec(raw))) {
+    const speaker = match[1] || match[3];
+    const line = match[2] || match[4];
+    if (!line || isLikelyNarrativeSpeakerPrefix(speaker, line)) continue;
     const before = raw.slice(last, match.index).trim();
     if (before) {
       blocks.push({ type: "paragraph", text: sanitizeNoPlayerControl(before, { narrative: true }) });
     }
     blocks.push({
       type: "dialogue",
-      speaker: cleanSpeakerName(match[1]) || chooseNpc(prompt, variant).name,
-      text: sanitizeNoPlayerControl(match[2].trim(), { narrative: false })
+      speaker: cleanSpeakerName(speaker) || chooseNpc(prompt, variant).name,
+      text: sanitizeNoPlayerControl(formatDialogueLine(line.trim()), { narrative: false })
     });
     last = pattern.lastIndex;
   }
@@ -2531,6 +2608,7 @@ function getNameAliases(name) {
 function getSavedCharacterCandidates() {
   return (state.settings.npcs || [])
     .filter((npc) => (npc.name || "").trim())
+    .filter((npc) => !isPlayerCharacterName(npc.name))
     .map((npc) => ({
       id: npc.id || `saved-${npc.name}`,
       name: String(npc.name || "").trim(),
@@ -2544,7 +2622,7 @@ function dedupeCharacterCandidates(candidates) {
   const result = [];
   (candidates || []).forEach((candidate) => {
     const name = cleanSpeakerName(candidate?.name);
-    if (!name || isInvalidCharacterName(name)) return;
+    if (!name || isInvalidCharacterName(name) || isPlayerCharacterName(name)) return;
     const existing = result.find((item) => namesMatch(item.name, name));
     if (existing) {
       existing.detail = existing.detail || candidate.detail || "";
@@ -2562,7 +2640,7 @@ function inferGeneratedCharacters(blocks = [], prompt = "", variant = 0) {
   (blocks || []).forEach((block, index) => {
     if (block.type !== "dialogue") return;
     const name = cleanSpeakerName(block.speaker);
-    if (!name || isInvalidCharacterName(name)) return;
+    if (!name || isInvalidCharacterName(name) || isPlayerCharacterName(name)) return;
     if (isLikelyOfficialCharacterName(name)) {
       const picked = chooseNpc(`${prompt}${name}`, variant + index);
       candidates.push({ ...picked, id: `generated-${normalizeCompareText(name).slice(0, 24) || index}`, name });
@@ -2575,12 +2653,21 @@ function inferGeneratedCharacters(blocks = [], prompt = "", variant = 0) {
 function isInvalidCharacterName(name) {
   const text = String(name || "").trim();
   if (!text) return true;
+  if (isPlayerCharacterName(text)) return true;
   if (containsJsonFieldCode(text)) return true;
   if (text.length > 24 && !/^[A-Za-z][A-Za-z .'-]{1,40}$/.test(text)) return true;
   if (/^(NPC|旁白|叙事|环境|声音|声线|语气|低声|轻声|沙哑|喑哑|冷冷|淡淡|忽然|突然|门外|窗外|身后|远处|耳边|喉底|喉咙|嗓音|声音低|压低声音)$/i.test(text)) return true;
   if (/(得像|像从|从喉底|喉底|喉咙|嗓子|嗓音|声线|语气|语调|口吻|声音|低得|轻得|沙哑|嘶哑|碾出来|挤出来|飘过来|传来|响起|开口|说道|问道|低声|轻声|冷声|哑声|沉声|压低|带着|夹着|透着|显得|看起来|似乎|仿佛|一样|那种|这种|描述|旁白)/.test(text)) return true;
   if (/[，。！？；、]/.test(text)) return true;
   return false;
+}
+
+function isPlayerCharacterName(name) {
+  const text = String(name || "").trim();
+  if (!text) return false;
+  if (/^(你|主控|玩家|Player)$/i.test(text)) return true;
+  const playerName = String(getPlayerName() || "").trim();
+  return Boolean(playerName && namesMatch(text, playerName));
 }
 
 function isLikelyOfficialCharacterName(name) {
@@ -2625,6 +2712,7 @@ function stripInlineEnv(text) {
 function normalizeDialogueQuotes(text) {
   return String(text || "")
     .replace(/([：:]\s*)[“「『]([^”」』]+)[”」』]/g, '$1"$2"')
+    .replace(/[“「『]([^”」』]+)[”」』]/g, '"$1"')
     .replace(/([：:]\s*)'([^']+)'/g, '$1"$2"')
     .replace(/([：:]\s*)‘([^’]+)’/g, '$1"$2"')
     .replace(/^\s*[“「『]([^”」』]+)[”」』]\s*$/g, '"$1"')
@@ -2632,15 +2720,33 @@ function normalizeDialogueQuotes(text) {
     .replace(/^\s*‘([^’]+)’\s*$/g, '"$1"');
 }
 
-function cleanDialogueText(text) {
+function cleanDialogueText(text, { forceDialogue = false } = {}) {
   let raw = normalizeDialogueQuotes(String(text || "").replace(/\s*\n+\s*/g, " ").trim());
   const quoted = raw.match(/"([^"]+)"/);
   if (quoted) {
-    const line = quoted[1].trim();
+    const line = formatDialogueLine(quoted[1]);
     const aside = raw.replace(quoted[0], "").replace(/[（）()]/g, "").trim();
     return { line, aside };
   }
+  if (forceDialogue) return { line: formatDialogueLine(raw), aside: "" };
   return { line: "", aside: raw };
+}
+
+function formatDialogueLine(text) {
+  return repairNpcPlayerReferences(normalizeDialogueQuotes(String(text || "")))
+    .replace(/^[“”"「」『』'‘’]+|[“”"「」『』'‘’]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isLikelyNarrativeSpeakerPrefix(speaker, line) {
+  const name = cleanSpeakerName(speaker);
+  const text = `${speaker || ""}${line || ""}`;
+  if (!name || isInvalidCharacterName(name)) return true;
+  if (/(时间|地点|天气|外形|体位|姿势|内心想法|印象|记忆|关系|剧情正文|美化信息条|按钮栏)/.test(speaker || "")) return true;
+  if (/[，、]/.test(speaker || "")) return true;
+  if (/(看起来|显得|像是|似乎|仿佛|低得|声线|语气|动作|神态|外形|心理|旁白)/.test(text)) return true;
+  return false;
 }
 
 function normalizePlayerReferenceText(text, { narrative = false } = {}) {
@@ -2651,8 +2757,31 @@ function normalizePlayerReferenceText(text, { narrative = false } = {}) {
     .replace(/名叫[“”"']?你[“”"']?/g, `名叫${playerName}`)
     .replace(/叫作[“”"']?你[“”"']?/g, `叫作${playerName}`)
     .replace(/叫做[“”"']?你[“”"']?/g, `叫做${playerName}`);
-  if (narrative && playerName) result = result.replaceAll(playerName, "你");
+  if (narrative && playerName) result = replacePlayerNameInNarration(result, playerName);
+  if (!narrative) result = repairNpcPlayerReferences(result, playerName);
   return result;
+}
+
+function replacePlayerNameInNarration(text, playerName = getPlayerName()) {
+  if (!playerName) return String(text || "");
+  return String(text || "").replaceAll(playerName, "你");
+}
+
+function repairNpcPlayerReferences(text, playerName = getPlayerName()) {
+  let result = String(text || "");
+  if (!playerName) return result;
+  return result
+    .replace(/这位[“”"']?你[“”"']?/g, playerName)
+    .replace(/那个[“”"']?你[“”"']?/g, playerName)
+    .replace(/名叫[“”"']?你[“”"']?/g, `名叫${playerName}`)
+    .replace(/叫作[“”"']?你[“”"']?/g, `叫作${playerName}`)
+    .replace(/叫做[“”"']?你[“”"']?/g, `叫做${playerName}`)
+    .replace(/把你当成/g, `把${playerName}当成`)
+    .replace(/对你(的|有|抱|保持|产生|还|不|很|挺|并|暂|也|更|没|已经|仍|始终|一直|目前|现在|此刻)/g, `对${playerName}$1`)
+    .replace(/和你(之间|保持|有|的|一起|继续|刚|还|不|很|并|也|更|没)/g, `和${playerName}$1`)
+    .replace(/跟你(之间|保持|有|的|一起|继续|刚|还|不|很|并|也|更|没)/g, `跟${playerName}$1`)
+    .replace(/将你(视为|看作|当作)/g, `将${playerName}$1`)
+    .replace(/把你(视为|看作|当作)/g, `把${playerName}$1`);
 }
 
 function sanitizeNoPlayerControl(text, options = {}) {
@@ -2662,7 +2791,7 @@ function sanitizeNoPlayerControl(text, options = {}) {
     /你意识到/g
   ];
   let result = String(text).replace(/\s*\n+\s*/g, " ");
-  result = normalizePlayerReferenceText(result, { narrative: options.narrative !== false });
+  result = normalizePlayerReferenceText(result, { narrative: options.narrative === true });
   banned.forEach((pattern) => {
     result = result.replace(pattern, "现场有人$1");
   });
@@ -2684,7 +2813,7 @@ function namesMatch(a, b) {
 }
 
 function chooseNpc(text, variant) {
-  const savedNpcs = state.settings.npcs.filter((npc) => (npc.name || npc.detail || "").trim());
+  const savedNpcs = state.settings.npcs.filter((npc) => (npc.name || npc.detail || "").trim() && !isPlayerCharacterName(npc.name));
   const ambientNpcs = [
     { id: "ambient-neighbor", name: "热心邻居", gender: "未知", age: "三十岁上下", detail: "开朗话唠，爱做饭，容易关心刚认识的人。圆脸，面色红润，穿柔软的家居开衫。" },
     { id: "ambient-witness", name: "谨慎旁观者", gender: "未知", age: "二十多岁", detail: "敏锐谨慎，说话前会先观察局势。短发，眼神清亮，深色外套。" },
@@ -2702,28 +2831,73 @@ function chooseNpc(text, variant) {
 }
 
 function getPresentNpcs(event) {
-  const resolver = createCharacterNameResolver(event.story?.blocks || [], event.prompt || "", event.variant || 0, latestSnapshot());
-  const speakers = [...new Set((event.story?.blocks || [])
-    .filter((block) => block.type === "dialogue" && block.speaker)
-    .map((block) => resolver.resolve(block.speaker))
-    .filter((speaker) => !isInvalidCharacterName(speaker))
-    .filter(Boolean))];
-  if (!speakers.length) return [chooseNpc(event.prompt || "", event.variant || 0)];
-  return speakers.map((speaker, index) => {
-    const saved = state.settings.npcs.find((npc) => npc.name && namesMatch(speaker, npc.name));
-    if (saved) return saved;
-    const picked = chooseNpc(`${event.prompt || ""}${speaker}`, (event.variant || 0) + index);
-    if (/邻居/.test(speaker)) {
-      return { ...picked, id: `speaker-${speaker}`, name: speaker, age: "三十岁上下", detail: "开朗话唠，热心，爱做饭，容易把关心藏在闲聊和食物里。面色红润，穿柔软的家居开衫。" };
-    }
-    if (/路人|旁观/.test(speaker)) {
-      return { ...picked, id: `speaker-${speaker}`, name: speaker, age: "未知", detail: "普通路人，心直口快，容易被糟糕环境惹得烦躁。衣着日常，神情不耐。" };
-    }
-    if (/管理员|保安|守夜/.test(speaker)) {
-      return { ...picked, id: `speaker-${speaker}`, name: speaker, age: "四十岁左右", detail: "谨慎克制，负责秩序，外冷内热。肩背宽，制服整洁，眉间有浅纹。" };
-    }
-    return { ...picked, id: `speaker-${speaker}`, name: speaker };
+  const story = event.story || {};
+  const blocks = story.blocks || [];
+  const resolver = createCharacterNameResolver(blocks, event.prompt || "", event.variant || 0, latestSnapshot());
+  const storyText = getStoryPlainText(story);
+  const statusText = (story.statuses || [])
+    .map((status) => [status?.name, status?.appearance, status?.posture, status?.thought, status?.impression].filter(Boolean).join("，"))
+    .join(" ");
+  const mentionText = `${event.prompt || ""} ${storyText} ${statusText}`;
+  const present = [];
+
+  const addNpc = (npc) => {
+    if (!npc?.name || isInvalidCharacterName(npc.name) || isPlayerCharacterName(npc.name)) return;
+    if (present.some((item) => namesMatch(item.name, npc.name))) return;
+    present.push(npc);
+  };
+
+  (state.settings.npcs || []).forEach((npc) => {
+    const name = String(npc.name || "").trim();
+    if (!name || isPlayerCharacterName(name)) return;
+    const mentioned = getNameAliases(name).some((alias) => alias && mentionText.includes(alias));
+    if (mentioned) addNpc(npc);
   });
+
+  (blocks || [])
+    .filter((block) => block.type === "dialogue" && block.speaker)
+    .forEach((block, index) => {
+      const speaker = resolver.resolve(block.speaker);
+      addNpc(buildNpcFromResolvedName(speaker, event, index, story));
+    });
+
+  (story.statuses || []).forEach((status, index) => {
+    const rawName = cleanStatusText(status?.name);
+    if (!resolver.isValid(rawName)) return;
+    const resolved = resolver.resolve(rawName);
+    const isExplicitInStory = storyText.includes(resolved) || getNameAliases(resolved).some((alias) => alias && storyText.includes(alias));
+    if (isAmbientPlaceholderName(resolved) && present.length && !isExplicitInStory) return;
+    addNpc(buildNpcFromResolvedName(resolved, event, index, story, status));
+  });
+
+  return present.length ? present : [chooseNpc(event.prompt || "", event.variant || 0)];
+}
+
+function buildNpcFromResolvedName(name, event, index, story, status = null) {
+  if (isPlayerCharacterName(name)) return null;
+  const saved = state.settings.npcs.find((npc) => npc.name && !isPlayerCharacterName(npc.name) && namesMatch(name, npc.name));
+  if (saved) return saved;
+  const apiStatus = status || (story?.statuses || []).find((item) => namesMatch(cleanStatusText(item?.name), name));
+  const picked = chooseNpc(`${event.prompt || ""}${name}`, (event.variant || 0) + index);
+  const statusDetail = apiStatus
+    ? [apiStatus.appearance, apiStatus.posture, apiStatus.thought, apiStatus.impression].map(cleanStatusText).filter(Boolean).join("，")
+    : "";
+  if (/邻居/.test(name)) {
+    return { ...picked, id: `speaker-${name}`, name, age: cleanStatusText(apiStatus?.age) || "三十岁上下", detail: statusDetail || "开朗话唠，热心，爱做饭，容易把关心藏在闲聊和食物里。面色红润，穿柔软的家居开衫。" };
+  }
+  if (/路人|旁观/.test(name)) {
+    return { ...picked, id: `speaker-${name}`, name, age: cleanStatusText(apiStatus?.age) || "未知", detail: statusDetail || "普通路人，心直口快，容易被糟糕环境惹得烦躁。衣着日常，神情不耐。" };
+  }
+  if (/管理员|保安|守夜/.test(name)) {
+    return { ...picked, id: `speaker-${name}`, name, age: cleanStatusText(apiStatus?.age) || "四十岁左右", detail: statusDetail || "谨慎克制，负责秩序，外冷内热。肩背宽，制服整洁，眉间有浅纹。" };
+  }
+  return {
+    ...picked,
+    id: `speaker-${name}`,
+    name,
+    age: cleanStatusText(apiStatus?.age) || picked.age || "未知",
+    detail: statusDetail || picked.detail || ""
+  };
 }
 
 function buildRelationDescription(npc, impression) {
@@ -2767,6 +2941,7 @@ function findApiStatus(statuses, npc) {
   if (!Array.isArray(statuses)) return null;
   return statuses.find((item) => {
     const name = String(item?.name || "").trim();
+    if (isPlayerCharacterName(name)) return false;
     return namesMatch(name, npc.name);
   }) || null;
 }
@@ -2775,8 +2950,24 @@ function findApiRelation(relations, npc) {
   if (!Array.isArray(relations)) return null;
   return relations.find((item) => {
     const name = String(item?.name || "").trim();
+    if (isPlayerCharacterName(name)) return false;
     return namesMatch(name, npc.name);
   }) || null;
+}
+
+function isAmbientPlaceholderName(name) {
+  return /^(热心邻居|谨慎旁观者|值夜管理员|安静陌生人|陌生人|NPC)$/.test(String(name || "").trim());
+}
+
+function isLowQualityStatusText(field, value) {
+  const text = cleanStatusText(value);
+  if (!text) return true;
+  const generic = /(仍在观察|保持观察|观察.*意图|意图与边界|边界|随着剧情|剧情变化|现场局势|当前局势|当前事件|本回合|此刻的变化|气氛变化|等待.*行动|态度会随|需要看.*接下来|暂无|未知|无法判断|不确定该如何反应|根据设定|按照设定|符合人设|模板)/;
+  if (generic.test(text)) return true;
+  if (field === "thought" && text.length < 18) return true;
+  if ((field === "appearance" || field === "posture") && text.length < 8) return true;
+  if ((field === "impression" || field === "relation") && text.length < 10) return true;
+  return false;
 }
 
 function cleanStatusText(value) {
@@ -2813,18 +3004,20 @@ function buildStatusField(field, context, offset = 0) {
 function enforceFreshStatus(status, previous, context) {
   const next = { ...status };
   const profile = context.profile || context.npc?.profile || {};
+  const sourceFields = context.sourceFields || {};
   if (context.npc?.detail) next.detail = context.npc.detail;
   if (context.npc?.age && (!next.age || next.age === "未知")) next.age = context.npc.age;
   const fields = ["appearance", "posture", "thought", "impression"];
   fields.forEach((field, index) => {
     const value = field === "thought" ? cleanThoughtText(next[field]) : cleanStatusText(next[field]);
-    const invalidThought = field === "thought" && (!value || value.length < 30);
-    if (!value || invalidThought || sameStatusText(value, previous?.[field])) {
+    const isFromApi = Boolean(sourceFields[field]);
+    const invalidThought = field === "thought" && !isFromApi && (!value || value.length < 30);
+    if (!value || invalidThought || (!isFromApi && sameStatusText(value, previous?.[field]))) {
       next[field] = buildStatusField(field, context, 17 + index * 11);
     } else {
       next[field] = value;
     }
-    if (sameStatusText(next[field], previous?.[field])) {
+    if (!isFromApi && sameStatusText(next[field], previous?.[field])) {
       next[field] = addSceneVariation(next[field], context.cue, context.seed + index);
     }
   });
@@ -2837,7 +3030,7 @@ function enforceFreshStatus(status, previous, context) {
     next.appearance = `${missingTraits.join("，")}，${next.appearance}`;
   }
   next.thought = ensureLongThought(cleanThoughtText(next.thought), next.name);
-  if (sameStatusText(next.thought, previous?.thought)) {
+  if (!sourceFields.thought && sameStatusText(next.thought, previous?.thought)) {
     next.thought = ensureLongThought(buildStatusField("thought", context, 71), next.name);
   }
   next.impression = cleanStatusText(next.impression) || buildStatusField("impression", context, 83);
@@ -2876,16 +3069,23 @@ function applyAiEvent(snapshot, event) {
     const personalCue = [cue, speechByNpc[npc.name] || ""].filter(Boolean).join("，");
     const statusSeed = (event.variant || 0) + npc.offset + next.seed;
     const apiStatus = findApiStatus(event.story.statuses, npc);
+    const apiFields = {
+      age: cleanStatusText(apiStatus?.age),
+      appearance: cleanStatusText(apiStatus?.appearance),
+      posture: cleanStatusText(apiStatus?.posture),
+      thought: cleanThoughtText(apiStatus?.thought) || cleanStatusText(apiStatus?.thought),
+      impression: cleanStatusText(apiStatus?.impression)
+    };
     let status = {
       id: npc.id,
       name: npc.name,
       detail: npc.detail || npc.existing?.detail || "",
-      age: npc.age || npc.existing?.age || cleanStatusText(apiStatus?.age) || "未知",
+      age: npc.age || npc.existing?.age || apiFields.age || "未知",
       profile,
-      appearance: cleanStatusText(apiStatus?.appearance) || buildDynamicAppearance({ ...npc, profile }, event.story.env, personalCue, statusSeed),
-      posture: cleanStatusText(apiStatus?.posture) || describePosture(event.story.env, statusSeed, profile, personalCue),
-      thought: cleanThoughtText(apiStatus?.thought) || buildThought({ ...npc, profile }, personalCue, next.memories, statusSeed),
-      impression: cleanStatusText(apiStatus?.impression) || buildImpression({ ...npc, profile }, personalCue, statusSeed)
+      appearance: apiFields.appearance || buildDynamicAppearance({ ...npc, profile }, event.story.env, personalCue, statusSeed),
+      posture: apiFields.posture || describePosture(event.story.env, statusSeed, profile, personalCue),
+      thought: apiFields.thought || buildThought({ ...npc, profile }, personalCue, next.memories, statusSeed),
+      impression: apiFields.impression || buildImpression({ ...npc, profile }, personalCue, statusSeed)
     };
     status = enforceFreshStatus(status, npc.existing, {
       npc: { ...npc, profile },
@@ -2893,7 +3093,13 @@ function applyAiEvent(snapshot, event) {
       cue: personalCue,
       memories: next.memories,
       seed: statusSeed,
-      profile
+      profile,
+      sourceFields: {
+        appearance: Boolean(apiFields.appearance),
+        posture: Boolean(apiFields.posture),
+        thought: Boolean(apiFields.thought),
+        impression: Boolean(apiFields.impression)
+      }
     });
     currentStatuses.push(status);
 
@@ -2949,6 +3155,8 @@ function cleanMemorySummary(value) {
   const playerName = getPlayerName();
   let clean = normalizePlayerReferenceText(String(value || ""), { narrative: false })
     .replace(/\s+/g, " ")
+    .replace(/^你(?=与|和|跟|在|向|对|因|被|同|把|将|从|进入|离开|发现|遇到|尝试|试图|继续|开始|结束|靠近|观察)/g, playerName)
+    .replace(/([，。；;、\s])你(?=与|和|跟|在|向|对|因|被|同|把|将|从|进入|离开|发现|遇到|尝试|试图|继续|开始|结束|靠近|观察)/g, `$1${playerName}`)
     .replace(/你进行了[^，。；]*，?/g, `${playerName}`)
     .replace(/剧情核心是/g, "")
     .replace(/关键反应是/g, "")
@@ -3385,13 +3593,14 @@ async function saveAiEdit(id, text) {
   const index = state.events.findIndex((event) => event.id === id);
   if (index < 0) return;
   const previous = index > 0 ? state.snapshots[index - 1] || buildInitialSnapshot() : buildInitialSnapshot();
-  state.events[index].story = normalizeStory(parseEditedAiText(text, state.events[index].story.env), previous, state.events[index].prompt || "", state.events[index].variant || 0);
+  state.events[index].story = normalizeStory(parseEditedAiText(text, state.events[index].story), previous, state.events[index].prompt || "", state.events[index].variant || 0);
   state.events = state.events.slice(0, index + 1);
   rebuildTimeline();
   renderAll();
 }
 
-function parseEditedAiText(text, fallbackEnv) {
+function parseEditedAiText(text, currentStory = {}) {
+  const fallbackEnv = currentStory.env || buildInitialSnapshot().env;
   const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
   const envLine = lines.find((line) => line.includes("时间：") && line.includes("地点：") && line.includes("天气："));
   const env = envLine ? {
@@ -3404,17 +3613,23 @@ function parseEditedAiText(text, fallbackEnv) {
   const blocks = body.flatMap((line) => {
     const dialogue = line.match(/^\[对话方框 - (.+?)\]\s*"?(.+?)"?$/);
     if (dialogue) {
-      const cleaned = cleanDialogueText(dialogue[2]);
-      return [{ type: "dialogue", speaker: dialogue[1], text: cleaned.line }];
+      const cleaned = cleanDialogueText(dialogue[2], { forceDialogue: true });
+      return [{ type: "dialogue", speaker: dialogue[1], text: formatDialogueLine(cleaned.line) }];
     }
     return splitParagraphAndDialogue(line, "", 0);
   });
-  return { env, blocks };
+  return {
+    env,
+    blocks,
+    statuses: clone(currentStory.statuses || []),
+    relations: clone(currentStory.relations || []),
+    memory: currentStory.memory || ""
+  };
 }
 
 function formatAiForEdit(event) {
   const body = event.story.blocks.map((block) => {
-    if (block.type === "dialogue") return `[对话方框 - ${block.speaker}] "${String(block.text || "").replace(/"/g, "")}"`;
+    if (block.type === "dialogue") return `[对话方框 - ${block.speaker}] "${formatDialogueLine(block.text)}"`;
     return block.text;
   }).join("\n\n");
   return `---美化信息条---\n[时间：${event.story.env.time} 地点：${event.story.env.place} 天气：${event.story.env.weather}]\n---剧情正文---\n${body}\n---按钮栏---\n[删除] [重说] [修改]`;
@@ -3871,6 +4086,8 @@ renderAll();
 </script>
 </body>
 </html>
+
+
 
 
 

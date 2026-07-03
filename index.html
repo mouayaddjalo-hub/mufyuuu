@@ -1374,6 +1374,7 @@ function buildStorySystemPrompt({ previous, source, variant, avoidText, fixedEnv
     fixedEnv ? "本回合是重说，env 必须沿用原时间、地点、天气。" : "env 必须根据本回合当前剧情实时生成 time、place、weather；如果剧情发生地点、时间段、天气感受或场景氛围变化，必须同步更新，禁止机械复用上一回合环境。",
     `绝对禁止代替玩家角色说话、行动、思考、选择或做决定。正文叙事描写主控动作、外貌、心理时使用第二人称“你”；NPC对话、NPC内心想法、人物状态 impression、关系和 memory 中必须称呼主控为“${playerName}”，禁止把“你”当成主控姓名，禁止“这位你”“那个你”。`,
     "台词判定硬规则：只有被英文双引号 \"\" 完整包裹的文本才是角色口头台词，才允许进入 dialogue.text；未被英文双引号包裹的内容一律是场景叙事、动作、神态、外形或心理，绝对不能当台词。所有角色开口台词必须使用英文双引号，禁止单引号；若生成中文引号或单引号，必须视为需要转成英文双引号的台词。",
+    "dialogue.speaker 只能填写当前真实出场角色的完整官方姓名。声线、语气、动作、旁白描述（例如“低得像从喉底碾出来的”“轻声”“沙哑地”）绝对不是角色名，必须放在 paragraph 叙事里，禁止写进 speaker，禁止生成对应人物状态。",
     "paragraph 是自然段，不能写时间地点天气信息条，不能混入英文双引号台词；dialogue 只能放一个角色真正说出口的话，禁止动作、心理、旁白进入 dialogue.text。",
     `statuses 只包含当前在场人物，每回合全新撰写，禁止照抄上一回合。主要NPC出场时必须精准读取预设人设，不得只匹配名字后随机跳变。appearance 写即时外形衣着神态；posture 写动作姿势站位；thought 写该角色贴合性格的第一人称心理OS，至少30中文字符，禁止干巴巴分析线索；impression 写此刻对${playerName}的看法。`,
     `memory 只用一句中文凝练叙事总结本回合发生了什么，格式类似“深夜走廊，${playerName}刚搬进公寓试图开门时，Maxim从背后靠近并提醒锁芯异常。”；禁止“你进行了…剧情核心是…”“关键反应是…”等拆解话术，禁止复述完整台词。`,
@@ -2338,7 +2339,12 @@ function normalizeStory(story, previous, text, variant, fixedEnv) {
       normalizedBlocks.push(item);
     });
   });
-  const filteredBlocks = normalizedBlocks.filter((block) => block.text.trim() && !containsJsonFieldCode(block.text) && !containsJsonFieldCode(block.speaker || ""));
+  const filteredBlocks = normalizeDialogueSpeakers(
+    normalizedBlocks.filter((block) => block.text.trim() && !containsJsonFieldCode(block.text) && !containsJsonFieldCode(block.speaker || "")),
+    text,
+    variant,
+    previous
+  );
 
   if (!filteredBlocks.length) {
     throw new Error("API 返回内容为空或格式不符合要求，请调整模型输出格式。");
@@ -2350,8 +2356,8 @@ function normalizeStory(story, previous, text, variant, fixedEnv) {
   return {
     env: safeEnv,
     blocks: filteredBlocks,
-    statuses: normalizeStoryStatuses(story?.statuses),
-    relations: normalizeStoryRelations(story?.relations),
+    statuses: normalizeStoryStatuses(story?.statuses, filteredBlocks, text, variant, previous),
+    relations: normalizeStoryRelations(story?.relations, filteredBlocks, text, variant, previous),
     memory: cleanMemorySummary(story?.memory || "")
   };
 }
@@ -2364,28 +2370,35 @@ function countStoryTextChars(blocks) {
     .length;
 }
 
-function normalizeStoryStatuses(statuses) {
+function normalizeStoryStatuses(statuses, blocks = [], prompt = "", variant = 0, previous = null) {
   if (!Array.isArray(statuses)) return [];
-  return statuses.map((item) => ({
-    name: cleanStatusText(item?.name),
-    age: cleanStatusText(item?.age),
-    appearance: cleanStatusText(item?.appearance),
-    posture: cleanStatusText(item?.posture),
-    thought: cleanThoughtText(item?.thought) || cleanStatusText(item?.thought),
-    impression: cleanStatusText(item?.impression)
-  })).filter((item) => item.name || item.appearance || item.thought);
+  const resolver = createCharacterNameResolver(blocks, prompt, variant, previous);
+  return statuses.map((item) => {
+    const rawName = cleanStatusText(item?.name);
+    const name = resolver.isValid(rawName) ? resolver.resolve(rawName) : "";
+    return {
+      name,
+      age: cleanStatusText(item?.age),
+      appearance: cleanStatusText(item?.appearance),
+      posture: cleanStatusText(item?.posture),
+      thought: cleanThoughtText(item?.thought) || cleanStatusText(item?.thought),
+      impression: cleanStatusText(item?.impression)
+    };
+  }).filter((item) => item.name && (item.appearance || item.thought || item.posture || item.impression));
 }
 
-function normalizeStoryRelations(relations) {
+function normalizeStoryRelations(relations, blocks = [], prompt = "", variant = 0, previous = null) {
   if (!Array.isArray(relations)) return [];
+  const resolver = createCharacterNameResolver(blocks, prompt, variant, previous);
   return relations.map((item) => {
     const affection = Number(item?.affection);
+    const rawName = cleanStatusText(item?.name);
     return {
-      name: cleanStatusText(item?.name),
+      name: resolver.isValid(rawName) ? resolver.resolve(rawName) : "",
       description: cleanStatusText(item?.description),
       affection: Number.isFinite(affection) ? clamp(affection, -100, 100) : 0
     };
-  }).filter((item) => item.name || item.description);
+  }).filter((item) => item.name && item.description);
 }
 
 function splitParagraphAndDialogue(text, prompt, variant) {
@@ -2414,10 +2427,178 @@ function splitParagraphAndDialogue(text, prompt, variant) {
   return blocks.length ? blocks : [{ type: "paragraph", text: sanitizeNoPlayerControl(raw, { narrative: true }) }];
 }
 
+function normalizeDialogueSpeakers(blocks, prompt, variant, previous = null) {
+  const resolver = createCharacterNameResolver(blocks, prompt, variant, previous);
+  let lastNarrative = "";
+  let lastResolved = resolver.fallback?.name || chooseNpc(prompt, variant).name;
+  return (blocks || []).map((block) => {
+    if (block.type !== "dialogue") {
+      if (block.text) lastNarrative = `${lastNarrative} ${block.text}`.slice(-500);
+      return block;
+    }
+    const resolved = resolver.resolveWithContext(block.speaker, lastNarrative, lastResolved);
+    if (resolved) lastResolved = resolved;
+    return {
+      ...block,
+      speaker: resolved
+    };
+  }).filter((block) => block.type !== "dialogue" || block.speaker);
+}
+
+function createCharacterNameResolver(blocks = [], prompt = "", variant = 0, previous = null) {
+  const saved = getSavedCharacterCandidates();
+  const previousPeople = (previous?.statuses || state.snapshots?.at?.(-1)?.statuses || [])
+    .map((person) => ({
+      id: person.id || `previous-${person.name}`,
+      name: person.name,
+      age: person.age,
+      detail: person.detail || [person.appearance, person.thought].filter(Boolean).join("，")
+    }))
+    .filter((person) => person.name && !isInvalidCharacterName(person.name));
+  const generated = inferGeneratedCharacters(blocks, prompt, variant);
+  const candidates = dedupeCharacterCandidates([...saved, ...previousPeople, ...generated]);
+  const fallback = candidates[0] || chooseNpc(prompt, variant);
+  let lastValid = fallback;
+
+  const resolveCandidate = (name, context = "", preferred = "") => {
+    const cleaned = cleanSpeakerName(name);
+    if (!cleaned || isInvalidCharacterName(cleaned)) {
+      const contextual = findCharacterInContext(context, candidates);
+      const preferredCandidate = preferred ? candidates.find((candidate) => namesMatch(preferred, candidate.name)) : null;
+      const picked = contextual || preferredCandidate || lastValid || fallback;
+      lastValid = picked;
+      return picked.name || fallback.name;
+    }
+    const matched = candidates.find((candidate) => namesMatch(cleaned, candidate.name));
+    if (matched) {
+      lastValid = matched;
+      return matched.name;
+    }
+    if (isLikelyOfficialCharacterName(cleaned)) {
+      const dynamic = {
+        id: `generated-${normalizeCompareText(cleaned).slice(0, 24) || cleaned}`,
+        name: cleaned,
+        age: "",
+        detail: ""
+      };
+      candidates.push(dynamic);
+      lastValid = dynamic;
+      return dynamic.name;
+    }
+    return lastValid.name || fallback.name;
+  };
+
+  return {
+    candidates,
+    fallback,
+    resolve: resolveCandidate,
+    resolveWithContext(name, context, preferred) {
+      return resolveCandidate(name, context, preferred);
+    },
+    isValid(name) {
+      const cleaned = cleanSpeakerName(name);
+      return Boolean(cleaned && !isInvalidCharacterName(cleaned) && (candidates.some((candidate) => namesMatch(cleaned, candidate.name)) || isLikelyOfficialCharacterName(cleaned)));
+    }
+  };
+}
+
+function findCharacterInContext(context, candidates) {
+  const text = String(context || "");
+  if (!text) return null;
+  let best = null;
+  let bestIndex = -1;
+  (candidates || []).forEach((candidate) => {
+    const names = getNameAliases(candidate.name);
+    names.forEach((alias) => {
+      if (!alias) return;
+      const index = text.lastIndexOf(alias);
+      if (index > bestIndex) {
+        best = candidate;
+        bestIndex = index;
+      }
+    });
+  });
+  return best;
+}
+
+function getNameAliases(name) {
+  const text = String(name || "").trim();
+  if (!text) return [];
+  const parts = text.split(/\s+/).filter((part) => part.length > 1);
+  return [...new Set([text, ...parts])];
+}
+
+function getSavedCharacterCandidates() {
+  return (state.settings.npcs || [])
+    .filter((npc) => (npc.name || "").trim())
+    .map((npc) => ({
+      id: npc.id || `saved-${npc.name}`,
+      name: String(npc.name || "").trim(),
+      gender: npc.gender || "",
+      age: npc.age || "",
+      detail: npc.detail || ""
+    }));
+}
+
+function dedupeCharacterCandidates(candidates) {
+  const result = [];
+  (candidates || []).forEach((candidate) => {
+    const name = cleanSpeakerName(candidate?.name);
+    if (!name || isInvalidCharacterName(name)) return;
+    const existing = result.find((item) => namesMatch(item.name, name));
+    if (existing) {
+      existing.detail = existing.detail || candidate.detail || "";
+      existing.age = existing.age || candidate.age || "";
+      existing.id = existing.id || candidate.id;
+      return;
+    }
+    result.push({ ...candidate, name });
+  });
+  return result;
+}
+
+function inferGeneratedCharacters(blocks = [], prompt = "", variant = 0) {
+  const candidates = [];
+  (blocks || []).forEach((block, index) => {
+    if (block.type !== "dialogue") return;
+    const name = cleanSpeakerName(block.speaker);
+    if (!name || isInvalidCharacterName(name)) return;
+    if (isLikelyOfficialCharacterName(name)) {
+      const picked = chooseNpc(`${prompt}${name}`, variant + index);
+      candidates.push({ ...picked, id: `generated-${normalizeCompareText(name).slice(0, 24) || index}`, name });
+    }
+  });
+  if (!candidates.length) candidates.push(chooseNpc(prompt, variant));
+  return candidates;
+}
+
+function isInvalidCharacterName(name) {
+  const text = String(name || "").trim();
+  if (!text) return true;
+  if (containsJsonFieldCode(text)) return true;
+  if (text.length > 24 && !/^[A-Za-z][A-Za-z .'-]{1,40}$/.test(text)) return true;
+  if (/^(NPC|旁白|叙事|环境|声音|声线|语气|低声|轻声|沙哑|喑哑|冷冷|淡淡|忽然|突然|门外|窗外|身后|远处|耳边|喉底|喉咙|嗓音|声音低|压低声音)$/i.test(text)) return true;
+  if (/(得像|像从|从喉底|喉底|喉咙|嗓子|嗓音|声线|语气|语调|口吻|声音|低得|轻得|沙哑|嘶哑|碾出来|挤出来|飘过来|传来|响起|开口|说道|问道|低声|轻声|冷声|哑声|沉声|压低|带着|夹着|透着|显得|看起来|似乎|仿佛|一样|那种|这种|描述|旁白)/.test(text)) return true;
+  if (/[，。！？；、]/.test(text)) return true;
+  return false;
+}
+
+function isLikelyOfficialCharacterName(name) {
+  const text = String(name || "").trim();
+  if (!text || isInvalidCharacterName(text)) return false;
+  if ((state.settings.npcs || []).some((npc) => npc.name && namesMatch(text, npc.name))) return true;
+  if (/^[A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+){0,3}$/.test(text)) return true;
+  if (/^[\u4e00-\u9fa5]{2,6}$/.test(text) && !/(声音|声线|语气|喉底|喉咙|嗓音|低声|轻声|沙哑|旁白|叙事|环境|暗影|阴影|走廊|门外|窗外|远处|附近|身后)/.test(text)) return true;
+  if (/^(热心邻居|谨慎旁观者|值夜管理员|安静陌生人|管理员|保安|邻居|老牧师)$/.test(text)) return true;
+  return false;
+}
+
 function cleanSpeakerName(name) {
   const raw = String(name || "").replace(/[，。！？!?、\s]+$/g, "").trim();
   if (!raw) return "";
-  if (/^[A-Za-z][A-Za-z .'-]{1,30}$/.test(raw)) return raw.trim();
+  const saved = (state.settings.npcs || []).find((npc) => npc.name && namesMatch(raw, npc.name));
+  if (saved) return saved.name.trim();
+  if (/^[A-Za-z][A-Za-z .'-]{1,40}$/.test(raw)) return raw.trim();
   return raw
     .replace(/^.*?(楼下|窗外|门外|身后|旁边|隔壁|远处|走廊尽头)/, "")
     .replace(/^(的|那个|那名|一位|一个)/, "")
@@ -2521,9 +2702,11 @@ function chooseNpc(text, variant) {
 }
 
 function getPresentNpcs(event) {
+  const resolver = createCharacterNameResolver(event.story?.blocks || [], event.prompt || "", event.variant || 0, latestSnapshot());
   const speakers = [...new Set((event.story?.blocks || [])
     .filter((block) => block.type === "dialogue" && block.speaker)
-    .map((block) => String(block.speaker).trim())
+    .map((block) => resolver.resolve(block.speaker))
+    .filter((speaker) => !isInvalidCharacterName(speaker))
     .filter(Boolean))];
   if (!speakers.length) return [chooseNpc(event.prompt || "", event.variant || 0)];
   return speakers.map((speaker, index) => {
@@ -3688,6 +3871,7 @@ renderAll();
 </script>
 </body>
 </html>
+
 
 
 

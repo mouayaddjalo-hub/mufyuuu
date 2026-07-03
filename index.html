@@ -1006,7 +1006,7 @@ function renderSidebar() {
         <div>外形：${escapeHtml(person.appearance || "外形细节仍在当前光线里逐步清晰。")}</div>
         <div>体位（姿势）：${escapeHtml(person.posture || "停在便于观察局势的位置。")}</div>
         <div>内心想法：${escapeHtml(ensureLongThought(person.thought, person.name))}</div>
-        <div>对“你”印象：${escapeHtml(person.impression || "仍在观察你的意图与边界。")}</div>
+        <div>对${escapeHtml(getPlayerName())}印象：${escapeHtml(person.impression || `仍在观察${getPlayerName()}的意图与边界。`)}</div>
       `;
       els.statusList.appendChild(card);
     });
@@ -1113,9 +1113,10 @@ function renderMemoryPage() {
 }
 
 function ensureLongThought(text, name) {
-  const base = text || `我得先稳住，不能只凭眼前这一点动静就下判断。这个人到底可靠不可靠，还得看接下来怎么说、怎么做。`;
+  const playerName = getPlayerName();
+  const base = text || `${playerName}突然闯进这摊麻烦里，心跳都被她搅乱了一拍。她不像故意惹事，可我也不能把戒心全放下，只能先把话压住，看看她是不是真的站得稳。`;
   if (base.length >= 30) return base;
-  return `${base} 我再多看一会儿，别急着把话说满，也别贸然靠得太近。`;
+  return `${base} ${playerName}的反应让我有点在意，可我还不想把这份在意表现得太明显。`;
 }
 
 function getPlayerProfile() {
@@ -1126,14 +1127,19 @@ function getPlayerProfile() {
   return state.settings.player;
 }
 
+function getPlayerName() {
+  return getPlayerProfile().name.trim() || "Lulu";
+}
+
 function formatPlayerProfileForPrompt() {
   const player = getPlayerProfile();
+  const name = player.name || "Lulu";
   return [
-    `姓名：${player.name || "未填写"}`,
+    `姓名：${name}`,
     `性别：${player.gender || "未填写"}`,
     `年龄：${player.age || "未填写"}`,
     `其他信息：${player.detail || "未填写"}`,
-    "底层规则：主控姓名只用于识别角色，AI 正文必须用第二人称代替主控姓名，不得直呼或机械复述主控姓名。",
+    `底层规则：正文叙事描写主控动作、外貌、心理时用第二人称“你”；NPC开口称呼、NPC内心想法、人物状态印象、关系和记忆里必须把主控识别为姓名“${name}”，禁止写“这位你”“那个你”或把“你”当姓名。`,
     "绝对禁止替主控说话、行动、思考、选择、反应或做决定。"
   ].join("\n");
 }
@@ -1153,9 +1159,9 @@ function buildSettingDigest(settings) {
     .join("；");
   return [
     `世界摘要：${compactForPrompt(settings.world || "未填写", 420)}`,
-    `主控：${player.name || "未填写"}，${player.gender || "未填写"}，${player.age || "未填写"}；${compactForPrompt(player.detail || "", 160)}`,
+    `主控：${player.name || "Lulu"}，${player.gender || "未填写"}，${player.age || "未填写"}；${compactForPrompt(player.detail || "", 160)}`,
     `主要NPC摘要：${npcBrief || "未填写"}`,
-    "固定规则：称呼主控用第二人称；不得替主控说话、行动、思考或决定；主要NPC按设定自然演化，不机械复述。"
+    "固定规则：正文叙事用第二人称“你”；NPC对话、内心、状态、关系、记忆用主控姓名；不得替主控说话、行动、思考或决定；主要NPC按设定自然演化，不机械复述。"
   ].join("\n");
 }
 
@@ -1351,6 +1357,7 @@ function buildGenerationSettingContext(includeOriginal) {
 }
 
 function buildStorySystemPrompt({ previous, source, variant, avoidText, fixedEnv, settingContext }) {
+  const playerName = getPlayerName();
   const rerollRules = fixedEnv
     ? [
       `本次是重说。重说固定环境：${JSON.stringify(fixedEnv)}。env.time、env.place、env.weather 必须原样返回，只重写 blocks、statuses、relations、memory。`,
@@ -1365,10 +1372,11 @@ function buildStorySystemPrompt({ previous, source, variant, avoidText, fixedEnv
     "剧情正文只写在 blocks。statuses、relations、memory 只写进对应字段，绝对不能混入 blocks 正文。",
     "强制长度：每回合 blocks 里的剧情正文总量至少 300 个中文字符，不包含 env、statuses、relations、memory；至少写 3 个自然段或 2 个自然段加 1 个 dialogue，剧情要有细节、氛围、NPC反应和推进。",
     fixedEnv ? "本回合是重说，env 必须沿用原时间、地点、天气。" : "env 必须根据本回合当前剧情实时生成 time、place、weather；如果剧情发生地点、时间段、天气感受或场景氛围变化，必须同步更新，禁止机械复用上一回合环境。",
-    "绝对禁止代替玩家角色说话、行动、思考、选择或做决定；正文称呼主控必须用第二人称。",
-    "paragraph 是自然段，不能写时间地点天气信息条，不能混入引号台词；dialogue 只能放一个角色真正说出口的话，禁止动作、心理、旁白进入 dialogue.text。",
-    "statuses 只包含当前在场人物，每回合全新撰写，禁止照抄上一回合。appearance 写即时外形衣着神态；posture 写动作姿势站位；thought 写该角色第一人称心理OS，至少30中文字符；impression 写此刻对“你”的看法。",
-    "memory 只用一句中文概括本回合核心：玩家输入、剧情推进、NPC关键反应；禁止复述完整台词。",
+    `绝对禁止代替玩家角色说话、行动、思考、选择或做决定。正文叙事描写主控动作、外貌、心理时使用第二人称“你”；NPC对话、NPC内心想法、人物状态 impression、关系和 memory 中必须称呼主控为“${playerName}”，禁止把“你”当成主控姓名，禁止“这位你”“那个你”。`,
+    "台词判定硬规则：只有被英文双引号 \"\" 完整包裹的文本才是角色口头台词，才允许进入 dialogue.text；未被英文双引号包裹的内容一律是场景叙事、动作、神态、外形或心理，绝对不能当台词。所有角色开口台词必须使用英文双引号，禁止单引号；若生成中文引号或单引号，必须视为需要转成英文双引号的台词。",
+    "paragraph 是自然段，不能写时间地点天气信息条，不能混入英文双引号台词；dialogue 只能放一个角色真正说出口的话，禁止动作、心理、旁白进入 dialogue.text。",
+    `statuses 只包含当前在场人物，每回合全新撰写，禁止照抄上一回合。主要NPC出场时必须精准读取预设人设，不得只匹配名字后随机跳变。appearance 写即时外形衣着神态；posture 写动作姿势站位；thought 写该角色贴合性格的第一人称心理OS，至少30中文字符，禁止干巴巴分析线索；impression 写此刻对${playerName}的看法。`,
+    `memory 只用一句中文凝练叙事总结本回合发生了什么，格式类似“深夜走廊，${playerName}刚搬进公寓试图开门时，Maxim从背后靠近并提醒锁芯异常。”；禁止“你进行了…剧情核心是…”“关键反应是…”等拆解话术，禁止复述完整台词。`,
     "世界设定是最高规则；主要NPC出场时参考人设自然演化，不机械复述设定，不跑题，不暴露生成逻辑。",
     "未成年角色只允许全年龄日常、悬疑、友情、紧张对峙或普通情绪互动，禁止成人化与露骨方向。",
     ...rerollRules,
@@ -1863,7 +1871,7 @@ function unwrapApiStoryPayload(payload) {
 }
 
 function parseTextResponseToStory(text) {
-  const clean = String(text || "")
+  const clean = normalizeDialogueQuotes(String(text || ""))
     .replace(/^```(?:json|text|markdown)?\s*/i, "")
     .replace(/\s*```$/i, "")
     .trim();
@@ -1880,7 +1888,7 @@ function parseTextResponseToStory(text) {
     .filter((line) => !/^\[?(删除|重说|修改)\]?/.test(line));
   const blocks = [];
   lines.forEach((line) => {
-    const dialogueBox = line.match(/^\[?对话方框\s*-\s*(.+?)\]?\s*["“「『]?(.+?)["”」』]?$/);
+    const dialogueBox = line.match(/^\[?对话方框\s*-\s*(.+?)\]?\s*"([^"]+)"$/);
     if (dialogueBox) {
       blocks.push({
         type: "dialogue",
@@ -1924,8 +1932,8 @@ function extractLooseBlocks(raw) {
       const speaker = extractLooseStringField(objectText, "speaker") || "NPC";
       const cleaned = cleanDialogueText(text);
       const result = [];
-      if (cleaned.aside) result.push({ type: "paragraph", text: sanitizeNoPlayerControl(cleaned.aside) });
-      if (cleaned.line) result.push({ type: "dialogue", speaker: cleanSpeakerName(speaker) || speaker, text: sanitizeNoPlayerControl(cleaned.line) });
+      if (cleaned.aside) result.push({ type: "paragraph", text: sanitizeNoPlayerControl(cleaned.aside, { narrative: true }) });
+      if (cleaned.line) result.push({ type: "dialogue", speaker: cleanSpeakerName(speaker) || speaker, text: sanitizeNoPlayerControl(cleaned.line, { narrative: false }) });
       return result;
     }
     return splitParagraphAndDialogue(text, "", 0);
@@ -2309,14 +2317,19 @@ function normalizeStory(story, previous, text, variant, fixedEnv) {
       if (cleaned.aside) {
         normalizedBlocks.push({
           type: "paragraph",
-          text: sanitizeNoPlayerControl(cleaned.aside)
+          text: sanitizeNoPlayerControl(cleaned.aside, { narrative: true })
         });
       }
       if (cleaned.line) {
         normalizedBlocks.push({
           type: "dialogue",
           speaker: String(block.speaker || chooseNpc(text, variant).name),
-          text: sanitizeNoPlayerControl(cleaned.line)
+          text: sanitizeNoPlayerControl(cleaned.line, { narrative: false })
+        });
+      } else if (!cleaned.aside && rawDialogueText.trim()) {
+        normalizedBlocks.push({
+          type: "paragraph",
+          text: sanitizeNoPlayerControl(rawDialogueText, { narrative: true })
         });
       }
       return;
@@ -2376,29 +2389,29 @@ function normalizeStoryRelations(relations) {
 }
 
 function splitParagraphAndDialogue(text, prompt, variant) {
-  const raw = stripInlineEnv(String(text || "").replace(/\s*\n+\s*/g, " ").trim());
+  const raw = normalizeDialogueQuotes(stripInlineEnv(String(text || "").replace(/\s*\n+\s*/g, " ").trim()));
   if (!raw) return [];
-  const pattern = /([A-Za-z][A-Za-z .'-]{0,30}|[\u4e00-\u9fa5A-Za-z0-9·]{1,16})[：:]\s*[“"「『]([^”"」』]+)[”"」』]/g;
+  const pattern = /([A-Za-z][A-Za-z .'-]{0,30}|[\u4e00-\u9fa5A-Za-z0-9·]{1,16})[：:]\s*"([^"]+)"/g;
   const blocks = [];
   let last = 0;
   let match;
   while ((match = pattern.exec(raw))) {
     const before = raw.slice(last, match.index).trim();
     if (before) {
-      blocks.push({ type: "paragraph", text: sanitizeNoPlayerControl(before) });
+      blocks.push({ type: "paragraph", text: sanitizeNoPlayerControl(before, { narrative: true }) });
     }
     blocks.push({
       type: "dialogue",
       speaker: cleanSpeakerName(match[1]) || chooseNpc(prompt, variant).name,
-      text: sanitizeNoPlayerControl(match[2].trim())
+      text: sanitizeNoPlayerControl(match[2].trim(), { narrative: false })
     });
     last = pattern.lastIndex;
   }
   const rest = raw.slice(last).trim();
   if (rest) {
-    blocks.push({ type: "paragraph", text: sanitizeNoPlayerControl(rest) });
+    blocks.push({ type: "paragraph", text: sanitizeNoPlayerControl(rest, { narrative: true }) });
   }
-  return blocks.length ? blocks : [{ type: "paragraph", text: sanitizeNoPlayerControl(raw) }];
+  return blocks.length ? blocks : [{ type: "paragraph", text: sanitizeNoPlayerControl(raw, { narrative: true }) }];
 }
 
 function cleanSpeakerName(name) {
@@ -2428,44 +2441,47 @@ function stripInlineEnv(text) {
     .trim();
 }
 
+function normalizeDialogueQuotes(text) {
+  return String(text || "")
+    .replace(/([：:]\s*)[“「『]([^”」』]+)[”」』]/g, '$1"$2"')
+    .replace(/([：:]\s*)'([^']+)'/g, '$1"$2"')
+    .replace(/([：:]\s*)‘([^’]+)’/g, '$1"$2"')
+    .replace(/^\s*[“「『]([^”」』]+)[”」』]\s*$/g, '"$1"')
+    .replace(/^\s*'([^']+)'\s*$/g, '"$1"')
+    .replace(/^\s*‘([^’]+)’\s*$/g, '"$1"');
+}
+
 function cleanDialogueText(text) {
-  let raw = String(text || "").replace(/\s*\n+\s*/g, " ").trim();
-  const quoted = raw.match(/[“"「『](.+?)[”"」』]/);
+  let raw = normalizeDialogueQuotes(String(text || "").replace(/\s*\n+\s*/g, " ").trim());
+  const quoted = raw.match(/"([^"]+)"/);
   if (quoted) {
     const line = quoted[1].trim();
     const aside = raw.replace(quoted[0], "").replace(/[（）()]/g, "").trim();
     return { line, aside };
   }
-  const parts = raw
-    .split(/(?<=[。！？!?])\s*/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-  const actionPattern = /(低头|抬头|皱眉|微笑|转身|走|伸手|握住|看向|望向|沉默|心想|想起|意识到|觉得|感觉|叹了口气|垂下|攥紧|靠近|退后|站起|坐下)/;
-  const speechVerbs = /(说|说道|开口|低声|轻声|回答|问|提醒|喊|喃喃|冷声)/;
-  const dialogueParts = parts.filter((part) => !actionPattern.test(part) || speechVerbs.test(part));
-  const asideParts = parts.filter((part) => actionPattern.test(part) && !speechVerbs.test(part));
-  const speechSource = dialogueParts.length ? dialogueParts.join("") : raw;
-  const line = speechSource
-    .replace(/^(.*?(?:说|说道|开口|低声|轻声|回答|问|提醒|喊|喃喃|冷声)[：:])/, "")
-    .replace(/[“”"「」『』]/g, "")
-    .trim();
-  return {
-    line,
-    aside: asideParts.filter((part) => !dialogueParts.includes(part)).join("")
-  };
+  return { line: "", aside: raw };
 }
 
-function sanitizeNoPlayerControl(text) {
-  const playerName = getPlayerProfile().name.trim();
+function normalizePlayerReferenceText(text, { narrative = false } = {}) {
+  const playerName = getPlayerName();
+  let result = String(text || "")
+    .replace(/这位[“”"']?你[“”"']?/g, playerName)
+    .replace(/那个[“”"']?你[“”"']?/g, playerName)
+    .replace(/名叫[“”"']?你[“”"']?/g, `名叫${playerName}`)
+    .replace(/叫作[“”"']?你[“”"']?/g, `叫作${playerName}`)
+    .replace(/叫做[“”"']?你[“”"']?/g, `叫做${playerName}`);
+  if (narrative && playerName) result = result.replaceAll(playerName, "你");
+  return result;
+}
+
+function sanitizeNoPlayerControl(text, options = {}) {
   const banned = [
     /你(走|跑|伸手|点头|摇头|回答|说道|决定|选择|拿起|放下|攻击|亲吻|拥抱|转身|离开|进入)/g,
     /你心想/g,
     /你意识到/g
   ];
   let result = String(text).replace(/\s*\n+\s*/g, " ");
-  if (playerName) {
-    result = result.replaceAll(playerName, "你");
-  }
+  result = normalizePlayerReferenceText(result, { narrative: options.narrative !== false });
   banned.forEach((pattern) => {
     result = result.replace(pattern, "现场有人$1");
   });
@@ -2473,6 +2489,17 @@ function sanitizeNoPlayerControl(text) {
   result = result.replace(/你心想/g, "现场没有替主控写出内心独白");
   result = result.replace(/你意识到/g, "现场线索显示");
   return result.trim();
+}
+
+function namesMatch(a, b) {
+  const left = String(a || "").trim();
+  const right = String(b || "").trim();
+  if (!left || !right) return false;
+  if (left === right || left.includes(right) || right.includes(left)) return true;
+  const leftParts = left.split(/\s+/).filter(Boolean);
+  const rightParts = right.split(/\s+/).filter(Boolean);
+  return leftParts.some((part) => part.length > 1 && rightParts.includes(part))
+    || rightParts.some((part) => part.length > 1 && leftParts.includes(part));
 }
 
 function chooseNpc(text, variant) {
@@ -2500,7 +2527,7 @@ function getPresentNpcs(event) {
     .filter(Boolean))];
   if (!speakers.length) return [chooseNpc(event.prompt || "", event.variant || 0)];
   return speakers.map((speaker, index) => {
-    const saved = state.settings.npcs.find((npc) => npc.name && speaker.includes(npc.name));
+    const saved = state.settings.npcs.find((npc) => npc.name && namesMatch(speaker, npc.name));
     if (saved) return saved;
     const picked = chooseNpc(`${event.prompt || ""}${speaker}`, (event.variant || 0) + index);
     if (/邻居/.test(speaker)) {
@@ -2518,10 +2545,11 @@ function getPresentNpcs(event) {
 
 function buildRelationDescription(npc, impression) {
   const profile = parseCharacterProfile(npc, 0);
-  if (profile.tone === "talkative") return `刚认识但愿意亲近，对你抱着热络好奇；${impression}`;
-  if (profile.tone === "gentle") return `保持温和距离，倾向先照顾你的处境；${impression}`;
+  const playerName = getPlayerName();
+  if (profile.tone === "talkative") return `刚认识但愿意亲近，对${playerName}抱着热络好奇；${impression}`;
+  if (profile.tone === "gentle") return `保持温和距离，倾向先照顾${playerName}的处境；${impression}`;
   if (profile.tone === "proud") return `互相试探中，不轻易示弱也不轻易信任；${impression}`;
-  if (profile.tone === "nervous") return `小心接触中，对你既好奇又不敢完全放松；${impression}`;
+  if (profile.tone === "nervous") return `小心接触中，对${playerName}既好奇又不敢完全放松；${impression}`;
   return `保持观察关系，态度会随你的下一步行动变化；${impression}`;
 }
 
@@ -2556,7 +2584,7 @@ function findApiStatus(statuses, npc) {
   if (!Array.isArray(statuses)) return null;
   return statuses.find((item) => {
     const name = String(item?.name || "").trim();
-    return name && (name === npc.name || npc.name.includes(name) || name.includes(npc.name));
+    return namesMatch(name, npc.name);
   }) || null;
 }
 
@@ -2564,12 +2592,12 @@ function findApiRelation(relations, npc) {
   if (!Array.isArray(relations)) return null;
   return relations.find((item) => {
     const name = String(item?.name || "").trim();
-    return name && (name === npc.name || npc.name.includes(name) || name.includes(npc.name));
+    return namesMatch(name, npc.name);
   }) || null;
 }
 
 function cleanStatusText(value) {
-  return String(value || "")
+  return normalizePlayerReferenceText(String(value || ""), { narrative: false })
     .replace(/\s+/g, " ")
     .replace(/^(姓名|年龄|外形|体位|姿势|内心想法|对“你”印象|对你印象)\s*[:：]\s*/g, "")
     .replace(/(根据|按照|遵循|读取|提炼|结合)设定[^。；;]*[。；;]?/g, "")
@@ -2581,7 +2609,7 @@ function cleanStatusText(value) {
 function cleanThoughtText(value) {
   const text = cleanStatusText(value);
   if (!text) return "";
-  if (/(他觉得|她觉得|此人觉得|他认为|她认为|气氛让|氛围让|剧情让|忍不住想|内心认为|从.*角度|旁白|客观)/.test(text)) return "";
+  if (/(他觉得|她觉得|此人觉得|他认为|她认为|气氛让|氛围让|剧情让|忍不住想|内心认为|从.*角度|旁白|客观|先别急着下结论|线索|案件|逻辑|推理|得记住)/.test(text)) return "";
   return text;
 }
 
@@ -2601,6 +2629,9 @@ function buildStatusField(field, context, offset = 0) {
 
 function enforceFreshStatus(status, previous, context) {
   const next = { ...status };
+  const profile = context.profile || context.npc?.profile || {};
+  if (context.npc?.detail) next.detail = context.npc.detail;
+  if (context.npc?.age && (!next.age || next.age === "未知")) next.age = context.npc.age;
   const fields = ["appearance", "posture", "thought", "impression"];
   fields.forEach((field, index) => {
     const value = field === "thought" ? cleanThoughtText(next[field]) : cleanStatusText(next[field]);
@@ -2614,10 +2645,19 @@ function enforceFreshStatus(status, previous, context) {
       next[field] = addSceneVariation(next[field], context.cue, context.seed + index);
     }
   });
+  const traitParts = [profile.traits?.hair, profile.traits?.skin, profile.traits?.face].filter(Boolean);
+  const missingTraits = traitParts.filter((trait) => {
+    const key = trait.replace(/色|皮肤|肤色|头发/g, "").slice(0, 2);
+    return key && !next.appearance.includes(key);
+  });
+  if (missingTraits.length) {
+    next.appearance = `${missingTraits.join("，")}，${next.appearance}`;
+  }
   next.thought = ensureLongThought(cleanThoughtText(next.thought), next.name);
   if (sameStatusText(next.thought, previous?.thought)) {
     next.thought = ensureLongThought(buildStatusField("thought", context, 71), next.name);
   }
+  next.impression = cleanStatusText(next.impression) || buildStatusField("impression", context, 83);
   return next;
 }
 
@@ -2657,7 +2697,7 @@ function applyAiEvent(snapshot, event) {
       id: npc.id,
       name: npc.name,
       detail: npc.detail || npc.existing?.detail || "",
-      age: cleanStatusText(apiStatus?.age) || npc.age || npc.existing?.age || "未知",
+      age: npc.age || npc.existing?.age || cleanStatusText(apiStatus?.age) || "未知",
       profile,
       appearance: cleanStatusText(apiStatus?.appearance) || buildDynamicAppearance({ ...npc, profile }, event.story.env, personalCue, statusSeed),
       posture: cleanStatusText(apiStatus?.posture) || describePosture(event.story.env, statusSeed, profile, personalCue),
@@ -2723,14 +2763,23 @@ function applyMemoryMergeEvent(snapshot, event) {
 }
 
 function cleanMemorySummary(value) {
-  const clean = String(value || "")
+  const playerName = getPlayerName();
+  let clean = normalizePlayerReferenceText(String(value || ""), { narrative: false })
     .replace(/\s+/g, " ")
-    .replace(/[“”"「」『』].*?[“”"「」『』]/g, "这段对话")
-    .replace(/(你|主控|玩家)\s*(说|问|回复|表示)\s*[:：][^；。]+[；。]?/g, "你进行了交流。")
+    .replace(/你进行了[^，。；]*，?/g, `${playerName}`)
+    .replace(/剧情核心是/g, "")
+    .replace(/关键反应是/g, "")
+    .replace(/人物反应集中在/g, "")
+    .replace(/你的关键行动为/g, `${playerName}`)
+    .replace(/剧情核心变化是/g, "")
+    .replace(/[“”"「」『』].*?[“”"「」『』]/g, "对话")
+    .replace(/(你|主控|玩家)\s*(说|问|回复|表示)\s*[:：][^；。]+[；。]?/g, `${playerName}进行了交流。`)
     .replace(/[^，。；]*?(?:说|说道|问道|回答|回复)\s*[:：][^；。]+[；。]?/g, "")
     .replace(/(?:本回合|即时记忆|总结)\s*[:：]\s*/g, "")
+    .replace(/^(剧情|核心|事件|内容)[：:]/g, "")
     .replace(/[；;]\s*[；;]+/g, "；")
     .trim();
+  if (/剧情核心|关键反应|你进行了|逻辑|分析|拆分/.test(clean)) return "";
   if (!clean) return "";
   const sentence = clean.split(/[。！？]/).find((part) => part.trim()) || clean;
   const oneLine = sentence.replace(/[；;]$/g, "").trim();
@@ -2738,11 +2787,11 @@ function cleanMemorySummary(value) {
 }
 
 function summarizeRoundMemory(event, storyText, npcs) {
-  const action = compactText(normalizePlayerActionForMemory(event.prompt || "剧情发展指令"), 42);
-  const story = compactText(stripDialogueForMemory(storyText), 58);
-  const npcNames = [...new Set((npcs || []).map((npc) => npc.name).filter(Boolean))].slice(0, 3).join("、") || "现场人物";
-  const reaction = compactText(extractReactionSummary(event.story) || "现场人物根据本回合剧情调整了态度与行动。", 44);
-  return cleanMemorySummary(`你${action}，剧情核心是${story}，${npcNames}的关键反应是${reaction}`);
+  const playerName = getPlayerName();
+  const action = compactText(normalizePlayerActionForMemory(event.prompt || "剧情发展指令"), 44);
+  const story = compactText(stripDialogueForMemory(storyText), 76);
+  const npcNames = [...new Set((npcs || []).map((npc) => npc.name).filter(Boolean))].slice(0, 2).join("、") || "现场人物";
+  return cleanMemorySummary(`${playerName}${action ? ` ${action}` : ""}，${story || "现场局势继续推进"}，${npcNames}因此改变了对她的态度。`);
 }
 
 function stripDialogueForMemory(text) {
@@ -2779,28 +2828,8 @@ function compactMemories(snapshot) {
 function summarizeMemoryBatch(memories, prefix = "长期记忆") {
   const text = memories.map((item) => item.text || "").join(" ");
   const people = extractMemoryPeople(text);
-  const actionParts = [];
-  const plotParts = [];
-  const reactionParts = [];
-  memories.forEach((item) => {
-    const line = String(item.text || "");
-    const action = line.match(/本回合你(.+?)(?:；|$)/)?.[1];
-    const plot = line.match(/剧情推进为(.+?)(?:；|$)/)?.[1];
-    const reaction = line.match(/的反应是(.+)$/)?.[1];
-    if (action) actionParts.push(action);
-    if (plot) plotParts.push(plot);
-    if (reaction) reactionParts.push(reaction);
-  });
-  const actionCore = compactText(dedupeTextParts(actionParts).join("，"), 56);
-  const plotCore = compactText(dedupeTextParts(plotParts).join("，"), 76);
-  const reactionCore = compactText(dedupeTextParts(reactionParts).join("，"), 64);
   const peopleText = people.length ? `涉及${people.join("、")}，` : "";
-  const core = [
-    actionCore ? `你的关键行动为${actionCore}` : "",
-    plotCore ? `剧情核心变化是${plotCore}` : "",
-    reactionCore ? `人物反应集中在${reactionCore}` : ""
-  ].filter(Boolean).join("；");
-  return `${prefix}：${peopleText}${core || compactText(text.replace(/[；;]/g, "，"), 160)}`;
+  return `${prefix}：${peopleText}${compactText(cleanMemorySummary(text) || text.replace(/[；;]/g, "，"), 180)}`;
 }
 
 function normalizePlayerActionForMemory(text) {
@@ -2929,8 +2958,8 @@ function sceneOuterDetail(cue, variant) {
 
 function extractAppearanceTraits(detail) {
   const text = String(detail || "");
-  const hairMatch = text.match(/[^，。；、\s]{0,8}(?:黑|白|银|金|棕|褐|灰|红|粉|蓝|紫|栗|茶)[^，。；、\s]{0,8}(?:发|头发|卷发|卷毛|长发|短发|马尾|刘海)/);
-  const skinMatch = text.match(/(?:白皮肤|白皙|冷白皮|小麦肤|肤色[^，。；、\s]{0,8}|皮肤[^，。；、\s]{0,8})/);
+  const hairMatch = text.match(/[^，。；、\s]{0,10}(?:黑|白|银|金|棕|褐|灰|红|粉|蓝|紫|栗|茶)[^，。；、\s]{0,10}(?:发|头发|卷发|卷毛|长发|短发|马尾|刘海)/);
+  const skinMatch = text.match(/(?:白皮肤|白皙|冷白皮|小麦肤|肤色[^，。；、\s]{0,8}|皮肤[^，。；、\s]{0,8}|肤色偏白|肤色偏冷)/);
   const faceMatch = text.match(/(?:高鼻梁|鼻梁[^，。；、\s]{0,8}|眼睛[^，。；、\s]{0,8}|眉眼[^，。；、\s]{0,8}|眉间[^，。；、\s]{0,8}|薄唇|唇色[^，。；、\s]{0,8}|圆脸|脸[^，。；、\s]{0,8}|轮廓[^，。；、\s]{0,8}|肩背[^，。；、\s]{0,8})/);
   const clothesMatch = text.match(/(?:穿着|身穿|衣着|制服|家居开衫|开衫|长裙|衬衫|外套|风衣|披肩|靴子|手套)[^，。；、\s]{0,14}/);
   return {
@@ -2944,67 +2973,69 @@ function extractAppearanceTraits(detail) {
 function buildThought(person, cue, memories, variant) {
   const name = typeof person === "string" ? person : person.name;
   const profile = typeof person === "string" ? parseCharacterProfile({ name }, variant) : (person.profile || parseCharacterProfile(person, variant));
+  const playerName = getPlayerName();
   const focus = sceneFocus(cue);
   const memoryHint = sceneFocus((memories.instant.at(-1)?.text || memories.long.at(-1)?.text || "").replace(/^主控推动了剧情：/, ""));
   const hooks = {
     talkative: [
-      `我是不是该过去搭句话？${focus}听起来怪让人在意的，拿点热汤或者点心当借口应该不算突兀吧。可万一她不喜欢陌生人主动靠近呢？我别一开口就说个没完，先轻一点试试。`,
-      `刚搬来的邻居大晚上遇上这种动静，心里肯定也不踏实吧。我要不要把吃的分一点过去？不行不行，别太热情把人吓到，先找个自然的话头，看她愿不愿意接。`
+      `我是不是该过去搭句话？${playerName}被${focus}牵在这里，肯定也不踏实。拿点热汤或者点心当借口应该不算突兀吧，可万一她不喜欢陌生人主动靠近呢？我别一开口就说个没完。`,
+      `${playerName}刚遇上这种动静，表情看着还算稳，可谁知道心里慌不慌。我要不要把吃的分一点过去？不行不行，别太热情把人吓到，先找个自然的话头。`
     ],
     gentle: [
-      `我不能靠得太近，别让她觉得被逼着回应。${focus}已经够让人紧张了，我先把声音放轻一点，给她留出退路。要是她愿意听，我再提醒她小心。`,
-      `她现在未必需要我插手，可我也不能装作没看见。先确认周围安不安全，再用不冒犯的方式开口，别把好意变成压力。`
+      `我不能靠得太近，别让${playerName}觉得被逼着回应。${focus}已经够让人紧张了，我先把声音放轻一点，给她留出退路。要是她愿意听，我再提醒她小心。`,
+      `${playerName}现在未必需要我插手，可我也不能装作没看见。先确认周围安不安全，再用不冒犯的方式开口，别把好意变成压力。`
     ],
     proud: [
-      `我不能表现得太在意，尤其是${focus}这种事，一急就显得我先乱了。她看起来也不迟钝，随便试探反而会露怯。先稳住，话要说得像我本来就掌握局面。`,
-      `她这一出现倒是把局面搅动了。我要先看她下一步怎么做，再决定是顺势开口，还是把疑问压回去。别急，急了就不好看了。`
+      `我不能表现得太在意，尤其是${focus}这种事，一急就显得我先乱了。${playerName}看起来也不迟钝，随便试探反而会露怯。先稳住，话要说得像我本来就掌握局面。`,
+      `${playerName}这一出现倒是把局面搅动了。她看人的样子不像毫无准备，我要把语气压住，别让她听出我其实也有点在意。`
     ],
     nervous: [
-      `刚才${focus}，我总觉得哪里不太对。她不像故意找麻烦的人，可我也不能完全放心。我要不要开口？万一说错话更尴尬怎么办，还是先别靠太近。`,
-      `怎么连一点声响都变得这么明显……我是不是该提醒她小心？可我自己都慌成这样，别一开口反而把事情弄得更糟。`
+      `刚才${focus}，我心里一下悬起来。${playerName}不像故意找麻烦的人，可我也不能完全放心。我要不要开口？万一说错话更尴尬怎么办，还是先别靠太近。`,
+      `怎么连一点声响都变得这么明显……我是不是该提醒${playerName}小心？可我自己都慌成这样，别一开口反而把事情弄得更糟。`
     ],
     irritable: [
-      `烦死了，偏偏这种时候又碰上新邻居。她看起来不像故意添乱，可${focus}全搅在一起，谁心情能好？要不要提醒她一句？算了，别一上来就像找茬。`,
-      `我本来只想快点绕过这摊麻烦，现在又多了个新面孔。她倒不像难相处的人，可要是继续耗在这里，今晚肯定没完。先随口抱怨一句，看看她接不接话。`
+      `烦死了，偏偏这种时候又碰上${playerName}。她看起来不像故意添乱，可${focus}全搅在一起，谁心情能好？要不要提醒她一句？算了，别一上来就像找茬。`,
+      `我本来只想快点绕过这摊麻烦，现在又多了${playerName}这个新面孔。她倒不像难相处的人，可要是继续耗在这里，今晚肯定没完。`
     ],
     careful: [
-      `先别急着下结论。${focus}都得记住，她现在没有乱来，这点也要算进去。等线索和之前的事对上，我再决定要不要多说一点。`,
-      `不能只看表面，她没有立刻越界，这一点值得记下。可信任不能给得太快，我得再看她接下来是不是前后一致。`
+      `${playerName}刚才没有乱来，这点倒让我稍微松了一口气。可${focus}还压在眼前，我不能把戒心全放下。她要是再靠近一点，我得先看清她眼神。`,
+      `${playerName}不像那种一上来就添乱的人，可我也不想太快相信。她站在这里，偏偏让我没法彻底移开注意力，心里烦得很。`
     ]
   };
   const list = hooks[profile.tone] || hooks.careful;
   const thought = list[Math.abs(variant + focus.length) % list.length];
-  const memory = memoryHint && memoryHint !== "刚才的变化" ? ` 还有${memoryHint}这件事，我不能完全当没发生过。` : "";
+  const memory = memoryHint && memoryHint !== "刚才的变化" ? ` 还有${memoryHint}这件事，我没法把${playerName}当成无关的人。` : "";
   return `${thought}${memory}`;
 }
 
 function buildImpression(person, cue, variant) {
   const profile = typeof person === "string" ? parseCharacterProfile({ name: person }, variant) : (person.profile || parseCharacterProfile(person, variant));
+  const playerName = getPlayerName();
   const focus = sceneFocus(cue);
   const impressions = {
     talkative: [
-      `一个看起来还不错、应该能聊上几句的人；眼下正适合用食物或闲聊自然靠近。`,
-      `像是可以慢慢熟起来的新面孔，但还不确定你喜不喜欢被人热情靠近。`
+      `${playerName}看起来还不错，应该能聊上几句；眼下正适合用食物或闲聊自然靠近。`,
+      `${playerName}像是可以慢慢熟起来的新面孔，但还不确定她喜不喜欢被人热情靠近。`
     ],
     gentle: [
-      `让人想保持温和距离的人；看得出你正在处理眼前状况，所以不适合贸然逼近。`,
-      `并不讨厌你，反而有点担心你会被${focus}牵连，只是还不确定该不该插手。`
+      `${playerName}让人想保持温和距离；看得出她正在处理眼前状况，所以不适合贸然逼近。`,
+      `并不讨厌${playerName}，反而有点担心她会被${focus}牵连，只是还不确定该不该插手。`
     ],
     proud: [
-      `不是可以随便糊弄的人；你让局势有了变化，因此值得认真看待，但暂时不能表现得太在意。`,
-      `有些难以判断的新变量，既不能轻视，也不想过早示弱。`
+      `${playerName}不是可以随便糊弄的人；她让局势有了变化，因此值得认真看待，但暂时不能表现得太在意。`,
+      `${playerName}是个难以判断的新变量，既不能轻视，也不想过早示弱。`
     ],
     nervous: [
-      `看起来不算危险，但你的出现让现场多了变数，需要再观察一会儿才敢放松。`,
-      `像是可以求助又不太敢靠近的人，印象还停在小心试探的阶段。`
+      `${playerName}看起来不算危险，但她的出现让现场多了变数，需要再观察一会儿才敢放松。`,
+      `${playerName}像是可以求助又不太敢靠近的人，印象还停在小心试探的阶段。`
     ],
     irritable: [
-      `一个刚搬来、暂时还看不出麻烦的新邻居；印象不坏，只是眼前这些破事让人没法好声好气。`,
-      `看起来还算讲理，但现在环境太糟，情绪很容易先被走廊里的动静带偏。`
+      `${playerName}这个刚搬来的新邻居暂时还看不出麻烦；印象不坏，只是眼前这些破事让人没法好声好气。`,
+      `${playerName}看起来还算讲理，但现在环境太糟，情绪很容易先被走廊里的动静带偏。`
     ],
     careful: [
-      `值得继续观察的人；你没有完全越界，但眼前这些动静让此人暂时保留判断。`,
-      `暂时不排斥你，不过信任还没有建立，需要看你接下来是否稳定。`
+      `${playerName}值得继续观察；她没有完全越界，但眼前这些动静让此人暂时保留判断。`,
+      `暂时不排斥${playerName}，不过信任还没有建立，需要看她接下来是否稳定。`
     ]
   };
   const list = impressions[profile.tone] || impressions.careful;
@@ -3019,6 +3050,7 @@ function parseCharacterProfile(person, seed = 0) {
   const fallback = fallbackAppearance(tone, seed);
   return {
     tone,
+    traits,
     hair: traits.hair || fallback.hair,
     skin: traits.skin || fallback.skin,
     face: traits.face || fallback.face,
@@ -3199,7 +3231,7 @@ function parseEditedAiText(text, fallbackEnv) {
 
 function formatAiForEdit(event) {
   const body = event.story.blocks.map((block) => {
-    if (block.type === "dialogue") return `[对话方框 - ${block.speaker}] "${block.text}"`;
+    if (block.type === "dialogue") return `[对话方框 - ${block.speaker}] "${String(block.text || "").replace(/"/g, "")}"`;
     return block.text;
   }).join("\n\n");
   return `---美化信息条---\n[时间：${event.story.env.time} 地点：${event.story.env.place} 天气：${event.story.env.weather}]\n---剧情正文---\n${body}\n---按钮栏---\n[删除] [重说] [修改]`;
@@ -3656,6 +3688,8 @@ renderAll();
 </script>
 </body>
 </html>
+
+
 
 
 

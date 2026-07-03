@@ -893,6 +893,7 @@ function buildInitialSnapshot() {
 }
 
 function renderAll() {
+  syncSelectedMemoriesWithSnapshot();
   renderChat();
   renderSidebar();
   renderHome();
@@ -1081,11 +1082,7 @@ function renderMemoryPage() {
     ...snap.memories.instant.map((memory) => ({ ...memory, type: "instant", label: "即时记忆" })),
     ...snap.memories.long.map((memory) => ({ ...memory, type: "long", label: "长期记忆" }))
   ].filter((memory) => els.memoryFilter.value === "all" || memory.type === els.memoryFilter.value);
-  const validMemoryIds = new Set([
-    ...snap.memories.instant.map((memory) => memory.id),
-    ...snap.memories.long.map((memory) => memory.id)
-  ]);
-  state.selectedMemories = state.selectedMemories.filter((id) => validMemoryIds.has(id));
+  syncSelectedMemoriesWithSnapshot();
 
   els.memoryList.innerHTML = "";
   if (memoryNotice) {
@@ -1111,6 +1108,18 @@ function renderMemoryPage() {
     `;
     els.memoryList.appendChild(item);
   });
+}
+
+function getValidMemoryIds(snapshot = latestSnapshot()) {
+  return new Set([
+    ...(snapshot.memories?.instant || []).map((memory) => memory.id),
+    ...(snapshot.memories?.long || []).map((memory) => memory.id)
+  ]);
+}
+
+function syncSelectedMemoriesWithSnapshot(snapshot = latestSnapshot()) {
+  const validMemoryIds = getValidMemoryIds(snapshot);
+  state.selectedMemories = (state.selectedMemories || []).filter((id) => validMemoryIds.has(id));
 }
 
 function ensureLongThought(text, name) {
@@ -1312,7 +1321,7 @@ async function resolveAiEvent(id) {
       blocks: [{ type: "paragraph", text: event.errorMessage }]
     };
   }
-  rebuildTimeline();
+  cleanupEventsAfterHistoryChange();
   renderAll();
 }
 
@@ -1363,7 +1372,32 @@ function buildGenerationSettingContext(includeOriginal) {
   ].join("\n");
 }
 
-function buildStorySystemPrompt({ previous, source, variant, avoidText, fixedEnv, settingContext }) {
+function getEventsBeforeEvent(eventId) {
+  const index = state.events.findIndex((event) => event.id === eventId);
+  return index >= 0 ? state.events.slice(0, index) : state.events.slice();
+}
+
+function hasDoneAiBefore(eventId) {
+  return getEventsBeforeEvent(eventId).some((event) => event.type === "ai" && event.status === "done");
+}
+
+function buildExistingContextPrompt(eventId, limit = 2200) {
+  const events = getEventsBeforeEvent(eventId)
+    .filter((event) => event.type === "player" || (event.type === "ai" && event.status === "done"))
+    .slice(-8);
+  if (!events.length) return "无，当前是重新开局。";
+  const lines = events.map((event) => {
+    if (event.type === "player") return `玩家：${compactText(event.text || "", 260)}`;
+    const env = event.story?.env ? `【${event.story.env.time || ""}/${event.story.env.place || ""}/${event.story.env.weather || ""}】` : "";
+    const body = compactText(storyToPlainText(event.story || {}), 520);
+    const memory = event.story?.memory ? `\n本回合记忆：${compactText(event.story.memory, 160)}` : "";
+    return `AI${env}：${body}${memory}`;
+  });
+  const text = lines.join("\n\n");
+  return text.length > limit ? `……${text.slice(-limit)}` : text;
+}
+
+function buildStorySystemPrompt({ previous, source, variant, avoidText, fixedEnv, settingContext, existingContext }) {
   const playerName = getPlayerName();
   const rerollRules = fixedEnv
     ? [
@@ -1391,10 +1425,13 @@ function buildStorySystemPrompt({ previous, source, variant, avoidText, fixedEnv
     `memory 只用一句中文凝练叙事总结本回合发生了什么，格式类似“深夜走廊，${playerName}刚搬进公寓试图开门时，Maxim从背后靠近并提醒锁芯异常。”；禁止“你进行了…剧情核心是…”“关键反应是…”等拆解话术，禁止复述完整台词。`,
     "世界设定是最高规则；主要NPC出场时参考人设自然演化，不机械复述设定，不跑题，不暴露生成逻辑。",
     "未成年角色只允许全年龄日常、悬疑、友情、紧张对峙或普通情绪互动，禁止成人化与露骨方向。",
+    "严格删除规则：只承认下方“现存上下文”和“当前记忆摘要”里的内容。任何被玩家删除、回溯、修改截断、未出现在现存事件链里的旧剧情都等于从未发生，NPC不能记得，memory、statuses、relations也不能引用。",
+    "连续性规则：必须紧接现存上下文最后一轮继续写。若上一轮有人刚提问、提醒、递物、靠近、等待回应，本回合必须承接这个动作或问题，禁止突然遗忘。",
     ...rerollRules,
     settingContext,
     `当前环境：${compactForPrompt(previous.env, fixedEnv ? 180 : 280)}`,
     `当前记忆摘要：${compactForPrompt(previous.memories, fixedEnv ? 420 : 700)}`,
+    `现存上下文（只包含未删除回合，必须承接最后一条；这里没有的旧剧情禁止记得）：\n${existingContext || "无，当前是重新开局。"}`,
     `上一回合人物状态，必须避开完全相同表述：${compactForPrompt(previous.statuses || [], fixedEnv ? 420 : 700)}`,
     `生成模式：${source === "directive" ? "剧情发展指令扩写，不写玩家反应" : "回应玩家输入，不越权操控玩家"}`,
     `差异种子：${variant}`,
@@ -1477,9 +1514,10 @@ async function readApiResponsePayload(response, eventId) {
 }
 
 async function generateWithApi({ source, text, previous, variant, eventId, avoidText = "", fixedEnv }) {
-  const isOpeningContext = state.events.filter((event) => event.type === "ai" && event.status === "done").length === 0;
+  const isOpeningContext = !hasDoneAiBefore(eventId);
   const settingContext = buildGenerationSettingContext(isOpeningContext);
-  const systemPrompt = buildStorySystemPrompt({ previous, source, variant, avoidText, fixedEnv, settingContext });
+  const existingContext = buildExistingContextPrompt(eventId, fixedEnv ? 1200 : 2200);
+  const systemPrompt = buildStorySystemPrompt({ previous, source, variant, avoidText, fixedEnv, settingContext, existingContext });
 
   const messages = [
     { role: "system", content: systemPrompt },
@@ -1641,6 +1679,7 @@ async function generateMergedMemoryWithApi(selected) {
   const systemPrompt = [
     "你是文字冒险游戏的记忆整理器。",
     "任务：把玩家勾选的即时记忆或长期记忆提炼成一条新的长期记忆。",
+    "只能使用用户本次提供的记忆条目；没有出现在条目里的旧剧情视为从未发生，禁止补写、联想或恢复已删除内容。",
     "禁止原文拼接，禁止逐条罗列，必须压缩核心事件、人物互动、NPC反应、关系变化和关键设定。",
     "只输出一段中文长期记忆正文，不要标题、编号、Markdown、解释或引号。",
     "这条记忆会永久影响后续剧情、NPC内心、对话和行为，所以必须保留会影响未来反应的事实。",
@@ -2524,7 +2563,7 @@ function normalizeDialogueSpeakers(blocks, prompt, variant, previous = null) {
 
 function createCharacterNameResolver(blocks = [], prompt = "", variant = 0, previous = null) {
   const saved = getSavedCharacterCandidates();
-  const previousPeople = (previous?.statuses || state.snapshots?.at?.(-1)?.statuses || [])
+  const previousPeople = (previous?.statuses || [])
     .map((person) => ({
       id: person.id || `previous-${person.name}`,
       name: person.name,
@@ -2830,10 +2869,10 @@ function chooseNpc(text, variant) {
   };
 }
 
-function getPresentNpcs(event) {
+function getPresentNpcs(event, snapshot = latestSnapshot()) {
   const story = event.story || {};
   const blocks = story.blocks || [];
-  const resolver = createCharacterNameResolver(blocks, event.prompt || "", event.variant || 0, latestSnapshot());
+  const resolver = createCharacterNameResolver(blocks, event.prompt || "", event.variant || 0, snapshot);
   const storyText = getStoryPlainText(story);
   const statusText = (story.statuses || [])
     .map((status) => [status?.name, status?.appearance, status?.posture, status?.thought, status?.impression].filter(Boolean).join("，"))
@@ -2928,6 +2967,36 @@ function rebuildTimeline() {
     snapshots.push(clone(snap));
   });
   state.snapshots = snapshots;
+}
+
+function cleanupEventsAfterHistoryChange() {
+  const kept = [];
+  state.events.forEach((event) => {
+    if (event.type !== "memoryMerge") {
+      kept.push(event);
+      return;
+    }
+    const snapBefore = replayEventsToSnapshot(kept);
+    const validIds = getValidMemoryIds(snapBefore);
+    const ids = Array.isArray(event.memoryIds) ? event.memoryIds : [];
+    if (ids.length && ids.every((id) => validIds.has(id))) {
+      kept.push(event);
+    }
+  });
+  state.events = kept;
+  rebuildTimeline();
+  syncSelectedMemoriesWithSnapshot();
+  saveState();
+}
+
+function replayEventsToSnapshot(events) {
+  let snap = buildInitialSnapshot();
+  (events || []).forEach((event) => {
+    if (event.type === "player") snap = applyPlayerEvent(snap, event);
+    else if (event.type === "ai") snap = applyAiEvent(snap, event);
+    else if (event.type === "memoryMerge") snap = applyMemoryMergeEvent(snap, event);
+  });
+  return snap;
 }
 
 function applyPlayerEvent(snapshot, event) {
@@ -3059,7 +3128,7 @@ function applyAiEvent(snapshot, event) {
   const speechByNpc = collectDialogueBySpeaker(event.story);
   const previousStatuses = next.statuses || [];
   const currentStatuses = [];
-  const npcs = getPresentNpcs(event).map((npc, index) => {
+  const npcs = getPresentNpcs(event, snapshot).map((npc, index) => {
     const existing = previousStatuses.find((person) => person.id === npc.id || person.name === npc.name);
     return { ...npc, detail: npc.detail || existing?.detail || "", existing, offset: index };
   });
@@ -3543,7 +3612,7 @@ async function deleteEvent(id) {
   const index = state.events.findIndex((event) => event.id === id);
   if (index < 0) return;
   state.events = state.events.slice(0, index);
-  rebuildTimeline();
+  cleanupEventsAfterHistoryChange();
   renderAll();
 }
 
@@ -3567,7 +3636,7 @@ async function rerollAi(id) {
   replacement.fixedEnv = fixedEnv;
   replacement.story.env = fixedEnv;
   state.events = [...baseEvents, replacement];
-  rebuildTimeline();
+  cleanupEventsAfterHistoryChange();
   renderAll();
   scheduleAiResolution(replacement.id);
 }
@@ -3584,7 +3653,7 @@ async function savePlayerEdit(id, text) {
   state.events = state.events.slice(0, index + 1);
   const aiEvent = createPendingAiEvent({ source: "player", text: state.events[index].text });
   state.events.push(aiEvent);
-  rebuildTimeline();
+  cleanupEventsAfterHistoryChange();
   renderAll();
   scheduleAiResolution(aiEvent.id);
 }
@@ -3595,7 +3664,7 @@ async function saveAiEdit(id, text) {
   const previous = index > 0 ? state.snapshots[index - 1] || buildInitialSnapshot() : buildInitialSnapshot();
   state.events[index].story = normalizeStory(parseEditedAiText(text, state.events[index].story), previous, state.events[index].prompt || "", state.events[index].variant || 0);
   state.events = state.events.slice(0, index + 1);
-  rebuildTimeline();
+  cleanupEventsAfterHistoryChange();
   renderAll();
 }
 
@@ -4037,6 +4106,7 @@ function bindEvents() {
 }
 
 async function mergeSelectedMemories() {
+  cleanupEventsAfterHistoryChange();
   const snap = latestSnapshot();
   const selected = [
     ...snap.memories.instant.map((memory) => ({ ...memory, type: "instant" })),
@@ -4054,6 +4124,10 @@ async function mergeSelectedMemories() {
   memoryNotice = "正在让 AI 提炼勾选记忆...";
   renderMemoryPage();
   try {
+    const validBeforeMerge = getValidMemoryIds(latestSnapshot());
+    if (!selected.every((memory) => validBeforeMerge.has(memory.id))) {
+      throw new Error("勾选的记忆已经失效，请重新打开记忆页选择。");
+    }
     const merged = await generateMergedMemoryWithApi(selected);
     state.events.push({
       id: uid("long"),
@@ -4064,7 +4138,7 @@ async function mergeSelectedMemories() {
     });
     state.selectedMemories = [];
     memoryNotice = "已整合为一条新的长期记忆。";
-    rebuildTimeline();
+    cleanupEventsAfterHistoryChange();
     renderAll();
   } catch (error) {
     memoryNotice = `整合失败：${formatGenerationError(error)}`;

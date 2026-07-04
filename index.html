@@ -353,8 +353,9 @@ body.page-open .side-drawer {
 .dialogue-speaker,
 .round-group h3,
 .memory-type { padding: 4px 10px; border: 1px solid rgba(244,166,202,0.52); border-radius: 999px; background: rgba(255,255,255,0.58); color: var(--pink-900); }
-.story-body { padding: 16px 4px 6px; }
-.story-body p { margin: 0 0 18px; line-height: 1.9; overflow-wrap: anywhere; color: #724d62; }
+.story-body { padding: 18px 4px 8px; }
+.story-body p { margin: 0 0 24px; line-height: 2.02; overflow-wrap: break-word; word-break: normal; color: #724d62; }
+.story-body p + p { margin-top: 6px; }
 .typing-indicator { color: var(--pink-900); }
 .typing-indicator::after { content: "..."; display: inline-block; width: 1.8em; animation: typingPulse 1.2s ease-in-out infinite; }
 @keyframes typingPulse { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
@@ -479,8 +480,8 @@ body.keyboard-open .input-bar { box-shadow: 0 10px 30px rgba(203, 91, 145, 0.24)
   .player-bubble { max-width: 96%; padding: 12px; }
   .ai-card { padding: 16px 10px 12px; border-radius: 22px; }
   .env-strip { display: grid; grid-template-columns: 1fr; gap: 6px; padding: 8px; font-size: 14px; border-radius: 18px; }
-  .story-body { padding: 12px 2px 2px; }
-  .story-body p { margin-bottom: 16px; line-height: 1.82; }
+  .story-body { padding: 14px 2px 4px; }
+  .story-body p { margin-bottom: 22px; line-height: 1.92; }
   .dialogue-box { padding: 15px 12px 13px; margin-bottom: 16px; }
   .button-row { gap: 7px; }
   .message-action { min-height: 34px; padding: 6px 11px; }
@@ -963,7 +964,9 @@ function renderAiMessage(event) {
           </div>
         `;
       }
-      return `<p>${escapeHtml(block.text)}</p>`;
+      return formatNarrativeParagraphs(block.text)
+        .map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`)
+        .join("");
     })
     .join("");
 
@@ -1127,6 +1130,50 @@ function ensureLongThought(text, name) {
   const base = text || `${playerName}突然闯进这摊麻烦里，心跳都被她搅乱了一拍。她不像故意惹事，可我也不能把戒心全放下，只能先把话压住，看看她是不是真的站得稳。`;
   if (base.length >= 30) return base;
   return `${base} ${playerName}的反应让我有点在意，可我还不想把这份在意表现得太明显。`;
+}
+
+function splitCompleteSentences(text) {
+  const clean = String(text || "").replace(/\s+/g, " ").trim();
+  if (!clean) return [];
+  const sentences = clean.match(/[^。！？!?…]+(?:[。！？!?…]+|$)/g) || [clean];
+  return sentences.map((sentence) => sentence.trim()).filter(Boolean);
+}
+
+function formatNarrativeParagraphs(text, targetLength = 120) {
+  const explicit = String(text || "")
+    .split(/\n{2,}/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const sourceParts = explicit.length ? explicit : [text];
+  const paragraphs = [];
+  sourceParts.forEach((part) => {
+    let current = "";
+    splitCompleteSentences(part).forEach((sentence) => {
+      const next = current ? `${current}${sentence}` : sentence;
+      if (current && next.length > targetLength) {
+        paragraphs.push(current);
+        current = sentence;
+      } else {
+        current = next;
+      }
+    });
+    if (current) paragraphs.push(current);
+  });
+  return paragraphs.length ? paragraphs : [String(text || "").trim()].filter(Boolean);
+}
+
+function normalizeNarrativeBlocks(blocks) {
+  const result = [];
+  (blocks || []).forEach((block) => {
+    if (block.type !== "paragraph") {
+      result.push(block);
+      return;
+    }
+    formatNarrativeParagraphs(block.text, 130).forEach((paragraph) => {
+      result.push({ ...block, text: paragraph });
+    });
+  });
+  return result;
 }
 
 function getPlayerProfile() {
@@ -1412,6 +1459,8 @@ function buildStorySystemPrompt({ previous, source, variant, avoidText, fixedEnv
     "JSON 结构固定：{env:{time,place,weather},blocks:[{type:'paragraph',text}或{type:'dialogue',speaker,text}],statuses:[{name,age,appearance,posture,thought,impression}],relations:[{name,description,affection}],memory:'一句话即时记忆'}。",
     "剧情正文只写在 blocks。statuses、relations、memory 只写进对应字段，绝对不能混入 blocks 正文。",
     "强制长度：每回合 blocks 里的剧情正文总量必须为 300 到 800 个中文字符，不包含 env、statuses、relations、memory；至少写 3 个自然段或 2 个自然段加 1 个 dialogue，剧情要有细节、氛围、NPC反应和推进，但禁止超过800字。",
+    "固定排版规则：blocks 中每个 paragraph 只写一个完整场景描述或一层剧情逻辑，段落长短适中，禁止把多层动作、心理、环境挤成一大段。需要换段时新建下一个 paragraph，不要在句子中间硬换行。",
+    "完整句子规则：paragraph.text 和 dialogue.text 都必须是完整句子，禁止半路截断句子或对话；一句话完整结束后再进入下一段或下一条 dialogue。",
     fixedEnv ? "本回合是重说，env 必须沿用原时间、地点、天气。" : "env 必须根据本回合当前剧情实时生成 time、place、weather；如果剧情发生地点、时间段、天气感受或场景氛围变化，必须同步更新，禁止机械复用上一回合环境。",
     `绝对禁止代替玩家角色说话、行动、思考、选择或做决定。正文叙事描写主控动作、外貌、心理时使用第二人称“你”；这里的“你”只是叙事代词，不是主控姓名。NPC对话、NPC内心想法、人物状态 impression、关系和 memory 中必须称呼主控为档案姓名“${playerName}”，禁止把“你”当成主控姓名，禁止“这位你”“那个你”，NPC开口直接叫人时必须叫“${playerName}”。`,
     "台词判定硬规则：只有被英文双引号 \"\" 完整包裹的文本才是角色口头台词，才允许进入 dialogue.text；未被英文双引号包裹的内容一律是场景叙事、动作、神态、外形或心理，绝对不能当台词。所有角色开口台词必须使用英文双引号，禁止单引号；若生成中文引号或单引号，必须视为需要转成英文双引号的台词。",
@@ -2419,12 +2468,12 @@ function normalizeStory(story, previous, text, variant, fixedEnv) {
       normalizedBlocks.push(item);
     });
   });
-  const filteredBlocks = normalizeDialogueSpeakers(
+  const filteredBlocks = normalizeNarrativeBlocks(normalizeDialogueSpeakers(
     normalizedBlocks.filter((block) => block.text.trim() && !containsJsonFieldCode(block.text) && !containsJsonFieldCode(block.speaker || "")),
     text,
     variant,
     previous
-  );
+  ));
 
   if (!filteredBlocks.length) {
     throw new Error("API 返回内容为空或格式不符合要求，请调整模型输出格式。");

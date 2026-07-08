@@ -647,7 +647,7 @@ body.keyboard-open .input-bar { box-shadow: 0 10px 30px rgba(203, 91, 145, 0.24)
           <button class="send-button" id="testApiButton" type="button">检验连接</button>
           <span class="api-status" id="apiStatus" aria-live="polite"></span>
         </div>
-        <div class="api-hint">填写任意兼容接口地址并保存；系统不会自动替换或补全 URL。</div>
+        <div class="api-hint">可填写任意兼容的 API URL 和模型名称，保存后系统不会替换或自动补全为其他地址。</div>
         <div class="archive-note">自动存档读档已开启，关闭后再次进入会自动接续。</div>
         <button class="danger-button" id="resetButton" type="button">重置游戏</button>
       </section>
@@ -1004,10 +1004,10 @@ function renderSidebar() {
       card.innerHTML = `
         <div>姓名：${escapeHtml(person.name)}</div>
         <div>年龄：${escapeHtml(person.age)}</div>
-        <div>外形：${escapeHtml(person.appearance || "外形细节仍在当前光线里逐步清晰。")}</div>
-        <div>体位（姿势）：${escapeHtml(person.posture || "停在便于观察局势的位置。")}</div>
-        <div>内心想法：${escapeHtml(ensureLongThought(person.thought, person.name))}</div>
-        <div>对${escapeHtml(getPlayerName())}印象：${escapeHtml(person.impression || `仍在观察${getPlayerName()}的意图与边界。`)}</div>
+        <div>外形：${escapeHtml(person.appearance || "")}</div>
+        <div>体位（姿势）：${escapeHtml(person.posture || "")}</div>
+        <div>内心想法：${escapeHtml(person.thought || "")}</div>
+        <div>对${escapeHtml(getPlayerName())}印象：${escapeHtml(person.impression || "")}</div>
       `;
       els.statusList.appendChild(card);
     });
@@ -1119,13 +1119,6 @@ function getValidMemoryIds(snapshot = latestSnapshot()) {
 function syncSelectedMemoriesWithSnapshot(snapshot = latestSnapshot()) {
   const validMemoryIds = getValidMemoryIds(snapshot);
   state.selectedMemories = (state.selectedMemories || []).filter((id) => validMemoryIds.has(id));
-}
-
-function ensureLongThought(text, name) {
-  const playerName = getPlayerName();
-  const base = text || `${playerName}突然闯进这摊麻烦里，心跳都被她搅乱了一拍。她不像故意惹事，可我也不能把戒心全放下，只能先把话压住，看看她是不是真的站得稳。`;
-  if (base.length >= 30) return base;
-  return `${base} ${playerName}的反应让我有点在意，可我还不想把这份在意表现得太明显。`;
 }
 
 function splitCompleteSentences(text) {

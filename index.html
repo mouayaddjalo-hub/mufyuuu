@@ -637,18 +637,17 @@ body.keyboard-open .input-bar { box-shadow: 0 10px 30px rgba(203, 91, 145, 0.24)
           <button class="small-button" id="saveApiButton" type="button">保存</button>
         </div>
         <div class="settings-grid">
-          <label>API URL<input id="apiUrl" type="text" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions" /></label>
+          <label>API URL<input id="apiUrl" type="text" placeholder="填写你的 API URL" /></label>
           <label>密钥<input id="apiKey" type="password" placeholder="sk-..." /></label>
-          <label>模型<input id="apiModel" type="text" list="modelOptions" placeholder="qwen-plus 或 qwen3.5-plus" /></label>
+          <label>模型<input id="apiModel" type="text" list="modelOptions" placeholder="填写模型名称" /></label>
         </div>
         <datalist id="modelOptions"></datalist>
         <div class="api-actions">
-          <button class="ghost-button" id="qwenPresetButton" type="button">千问</button>
           <button class="ghost-button" id="fetchModelsButton" type="button">拉取模型</button>
           <button class="send-button" id="testApiButton" type="button">检验连接</button>
           <span class="api-status" id="apiStatus" aria-live="polite"></span>
         </div>
-        <div class="api-hint">千问默认使用 OpenAI 兼容地址；也可填百炼 Workspace 地址，保存时会自动补全 /chat/completions。</div>
+        <div class="api-hint">填写任意兼容接口地址并保存；系统不会自动替换或补全 URL。</div>
         <div class="archive-note">自动存档读档已开启，关闭后再次进入会自动接续。</div>
         <button class="danger-button" id="resetButton" type="button">重置游戏</button>
       </section>
@@ -689,17 +688,15 @@ body.keyboard-open .input-bar { box-shadow: 0 10px 30px rgba(203, 91, 145, 0.24)
 
     <script>
 const STORAGE_KEY = "muyu-ai-adventure-state-v1";
-const QWEN_DEFAULT_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
-
 const defaultState = {
   settings: {
     world: "",
     player: { name: "", gender: "", age: "", detail: "" },
     npcs: [],
-    apiUrl: QWEN_DEFAULT_URL,
+    apiUrl: "",
     apiKey: "",
-    apiModel: "qwen-plus",
-    apiModels: ["qwen-plus", "qwen3.5-plus", "qwen3-plus", "qwen-turbo", "qwen-max", "qwen-long"],
+    apiModel: "",
+    apiModels: [],
     settingDigest: ""
   },
   events: [],
@@ -748,7 +745,6 @@ const els = {
   saveWorldButton: document.getElementById("saveWorldButton"),
   saveCharacterButton: document.getElementById("saveCharacterButton"),
   saveApiButton: document.getElementById("saveApiButton"),
-  qwenPresetButton: document.getElementById("qwenPresetButton"),
   fetchModelsButton: document.getElementById("fetchModelsButton"),
   testApiButton: document.getElementById("testApiButton"),
   apiStatus: document.getElementById("apiStatus"),
@@ -801,8 +797,8 @@ function migrateState(next) {
   }
   next.settings.npcs = Array.isArray(next.settings.npcs) ? next.settings.npcs : [];
   next.settings.apiModels = Array.isArray(next.settings.apiModels) ? next.settings.apiModels : [];
-  if (!next.settings.apiUrl || !isQwenUrl(next.settings.apiUrl)) next.settings.apiUrl = QWEN_DEFAULT_URL;
-  if (!next.settings.apiModel) next.settings.apiModel = "qwen-plus";
+  next.settings.apiUrl = String(next.settings.apiUrl || "").trim();
+  next.settings.apiModel = String(next.settings.apiModel || "").trim();
   next.settings.apiModels = [...new Set([...next.settings.apiModels, ...defaultState.settings.apiModels])];
   if (!next.settings.settingDigest) next.settings.settingDigest = buildSettingDigest(next.settings);
   next.events = Array.isArray(next.events) ? next.events : [];
@@ -1458,7 +1454,7 @@ function buildStorySystemPrompt({ previous, source, variant, avoidText, fixedEnv
     "你是 MUYU 风格 AI 文字冒险引擎，只返回严格 JSON，禁止 Markdown、代码块、解释、思考过程、政策说明或 JSON 外文字。",
     "JSON 结构固定：{env:{time,place,weather},blocks:[{type:'paragraph',text}或{type:'dialogue',speaker,text}],statuses:[{name,age,appearance,posture,thought,impression}],relations:[{name,description,affection}],memory:'一句话即时记忆'}。",
     "剧情正文只写在 blocks。statuses、relations、memory 只写进对应字段，绝对不能混入 blocks 正文。",
-    "强制长度：每回合 blocks 里的剧情正文总量必须为 300 到 800 个中文字符，不包含 env、statuses、relations、memory；至少写 3 个自然段或 2 个自然段加 1 个 dialogue，剧情要有细节、氛围、NPC反应和推进，但禁止超过800字。",
+    "剧情正文长度目标：每回合 blocks 里的剧情正文总量控制在 300 到 800 个中文字符，不包含 env、statuses、relations、memory；至少写 3 个自然段或 2 个自然段加 1 个 dialogue。若剧情自然收束时略少或略多，也要保持句子完整、逻辑完整，不要为了凑字或截字破坏内容。",
     "固定排版规则：blocks 中每个 paragraph 只写一个完整场景描述或一层剧情逻辑，段落长短适中，禁止把多层动作、心理、环境挤成一大段。需要换段时新建下一个 paragraph，不要在句子中间硬换行。",
     "完整句子规则：paragraph.text 和 dialogue.text 都必须是完整句子，禁止半路截断句子或对话；一句话完整结束后再进入下一段或下一条 dialogue。",
     fixedEnv ? "本回合是重说，env 必须沿用原时间、地点、天气。" : "env 必须根据本回合当前剧情实时生成 time、place、weather；如果剧情发生地点、时间段、天气感受或场景氛围变化，必须同步更新，禁止机械复用上一回合环境。",
@@ -1587,7 +1583,7 @@ async function generateWithApi({ source, text, previous, variant, eventId, avoid
   try {
     const parsed = parseApiJsonContent(content);
     const story = normalizeStory(parsed, previous, text, variant, fixedEnv);
-    assertStoryStatusQuality(story);
+    assertStoryStatusQuality(story, previous);
     return story;
   } catch (error) {
     if (/人物状态/.test(String(error?.message || ""))) {
@@ -1599,7 +1595,7 @@ async function generateWithApi({ source, text, previous, variant, eventId, avoid
         messages: [
           ...messages,
           { role: "assistant", content },
-          { role: "user", content: `上一版的 statuses/relations 存在兜底、缺字段或与剧情/人设不贴合的问题。请保持同一回合剧情事件，不要写解释，只返回完整严格 JSON；blocks 可以按原剧情重写但不能变短；statuses 必须逐名匹配真实在场人物，直接引用本回合具体剧情细节，完全符合主要 NPC 原设定，禁止占位人物和“观察/边界/剧情变化”等通用话术。` }
+          { role: "user", content: `上一版的 statuses/relations 存在兜底、缺字段、与剧情/人设不贴合或与上一回合完全重复的问题。请保持同一回合剧情事件，不要写解释，只返回完整严格 JSON；blocks 可以按原剧情重写但不能变短；statuses 必须逐名匹配真实在场人物，直接引用本回合具体剧情细节，完全符合主要 NPC 原设定，禁止占位人物和“观察/边界/剧情变化”等通用话术。` }
         ]
       };
       const retryData = await postChatCompletion(retryBody, eventId);
@@ -1610,34 +1606,10 @@ async function generateWithApi({ source, text, previous, variant, eventId, avoid
       }
       const retryParsed = parseApiJsonContent(retryContent);
       const retryStory = normalizeStory(retryParsed, previous, text, variant, fixedEnv);
-      assertStoryStatusQuality(retryStory);
+      assertStoryStatusQuality(retryStory, previous);
       return retryStory;
     }
-    if (!/(300|800)/.test(String(error?.message || ""))) throw error;
-    const tooLong = /800/.test(String(error?.message || ""));
-    updateStreamingText(eventId, tooLong ? "剧情正文超过 800 字，正在压缩到规定长度……" : "剧情正文少于 300 字，正在自动补写完整版本……");
-    const retryBody = {
-      ...requestBody,
-      temperature: tooLong ? Math.min(requestBody.temperature || 0.7, 0.72) : Math.max(requestBody.temperature || 0.7, 0.82),
-      max_tokens: tooLong ? Math.min(requestBody.max_tokens || 1350, 1150) : Math.max(requestBody.max_tokens || 0, 1450),
-      messages: [
-        ...messages,
-        { role: "assistant", content },
-        { role: "user", content: tooLong
-          ? "上一版剧情正文超过800字。请严格按同一JSON结构重写本回合，只压缩 blocks 剧情正文，保留关键动作、台词和NPC反应；blocks剧情正文必须控制在300到800个中文字符内，不要增加正文外说明。"
-          : "上一版剧情正文少于300字。请严格按同一JSON结构重写本回合，blocks剧情正文必须为300到800个中文字符，不要增加正文外说明。" }
-      ]
-    };
-    const retryData = await postChatCompletion(retryBody, eventId);
-    const retryContent = extractResponseMessage(retryData);
-    updateStreamingText(eventId, makeStreamingPreview(retryContent) || "正在整理补写后的剧情格式……");
-    if (!String(retryContent || "").trim()) {
-      throw new Error(`API 返回内容为空：补写请求没有返回可用正文。${describeApiEmptyResponse(retryData)}`);
-    }
-    const retryParsed = parseApiJsonContent(retryContent);
-    const retryStory = normalizeStory(retryParsed, previous, text, variant, fixedEnv);
-    assertStoryStatusQuality(retryStory);
-    return retryStory;
+    throw error;
   }
 }
 
@@ -1909,15 +1881,6 @@ function storyBodyPlainText(story) {
     else if (block.text) parts.push(block.text);
   });
   return parts.filter(Boolean).join("\n\n");
-}
-
-function collectDialogueBySpeaker(story) {
-  const map = {};
-  (story?.blocks || []).forEach((block) => {
-    if (block.type !== "dialogue" || !block.speaker || !block.text) return;
-    map[block.speaker] = [map[block.speaker], block.text].filter(Boolean).join(" ");
-  });
-  return map;
 }
 
 function isTooSimilarStory(nextText, previousText) {
@@ -2242,13 +2205,13 @@ async function throwApiHttpError(response) {
 
 function formatGenerationError(error) {
   if (error?.name === "AbortError") {
-    return "生成失败：API 请求超过 45 秒没有完成。请先换 qwen-turbo 或 qwen-plus 测试，缩短世界设定/角色设定，确认模型没有卡在复杂长上下文里。";
+    return "生成失败：API 请求超过 45 秒没有完成。请先换更轻量或更稳定的模型测试，缩短世界设定/角色设定，确认模型没有卡在复杂长上下文里。";
   }
   const message = String(error?.message || error || "未知错误");
-  if (/400|Bad Request/i.test(message)) return `生成失败：请求参数不被接口接受。请检查模型名是否正确，当前模型可以先试 qwen-plus。${message}`;
-  if (/401|Unauthorized/i.test(message)) return "生成失败：密钥无效或没有权限，请检查千问 API Key。";
+  if (/400|Bad Request/i.test(message)) return `生成失败：请求参数不被接口接受。请检查 API URL 和模型名是否正确。${message}`;
+  if (/401|Unauthorized/i.test(message)) return "生成失败：密钥无效或没有权限，请检查 API Key。";
   if (/403|Forbidden/i.test(message)) return "生成失败：当前密钥没有访问该模型或工作空间的权限。";
-  if (/404|Not Found/i.test(message)) return "生成失败：API 地址或模型名称不存在，请确认千问兼容地址和模型 ID。";
+  if (/404|Not Found/i.test(message)) return "生成失败：API 地址或模型名称不存在，请确认接口地址和模型 ID。";
   if (/Failed to fetch|NetworkError|Load failed/i.test(message)) {
     return "生成失败：浏览器无法连接 API。常见原因是接口跨域限制、网络不可达或 API 地址填写错误。";
   }
@@ -2276,34 +2239,12 @@ function getQuickApiTimeout() {
   return Number.isFinite(parsed) && parsed >= 500 ? parsed : 30000;
 }
 
-const QWEN_MODEL_CANDIDATES = [
-  "qwen-plus",
-  "qwen3.5-flash",
-  "qwen3.5-plus",
-  "qwen3-plus",
-  "qwen-turbo",
-  "qwen-max",
-  "qwen-long"
-];
-
 function isQwenUrl(apiUrl) {
   return /aliyuncs\.com|dashscope|compatible-mode/i.test(apiUrl || "");
 }
 
 function normalizeApiUrl(apiUrl) {
-  const trimmed = String(apiUrl || "").trim();
-  if (!trimmed) return "";
-  const withoutTrailing = trimmed.replace(/\/+$/, "");
-  if (/\/chat\/completions$|\/responses$|\/models$/i.test(withoutTrailing)) {
-    return withoutTrailing.replace(/\/models$/i, "/chat/completions");
-  }
-  if (/\/compatible-mode\/v1$/i.test(withoutTrailing) || /\/v1$/i.test(withoutTrailing)) {
-    return `${withoutTrailing}/chat/completions`;
-  }
-  if (/aliyuncs\.com|dashscope/i.test(withoutTrailing)) {
-    return `${withoutTrailing}/compatible-mode/v1/chat/completions`;
-  }
-  return `${withoutTrailing}/chat/completions`;
+  return String(apiUrl || "").trim();
 }
 
 function getModelsUrl(apiUrl) {
@@ -2324,33 +2265,6 @@ function getModelsUrl(apiUrl) {
   }
 }
 
-function applyQwenModelFallback(message = "模型拉取失败，已填入千问常用模型候选。") {
-  state.settings.apiModels = QWEN_MODEL_CANDIDATES;
-  if (!state.settings.apiModel || !state.settings.apiModels.includes(state.settings.apiModel)) {
-    state.settings.apiModel = "qwen-plus";
-    els.apiModel.value = state.settings.apiModel;
-  }
-  renderModelOptions();
-  saveState();
-  showApiStatus(message, "error");
-}
-
-function applyQwenPreset() {
-  syncApiFromInputs();
-  if (!state.settings.apiUrl || !isQwenUrl(state.settings.apiUrl)) {
-    els.apiUrl.value = QWEN_DEFAULT_URL;
-    state.settings.apiUrl = els.apiUrl.value;
-  }
-  state.settings.apiModels = QWEN_MODEL_CANDIDATES;
-  if (!state.settings.apiModel) {
-    state.settings.apiModel = "qwen-plus";
-    els.apiModel.value = state.settings.apiModel;
-  }
-  renderModelOptions();
-  saveState();
-  showApiStatus("已切换为千问兼容模式。填写千问 API Key 后可直接拉取模型或检验连接。", "neutral");
-}
-
 async function fetchAvailableModels() {
   syncApiFromInputs();
   if (!state.settings.apiUrl || !state.settings.apiKey) {
@@ -2368,21 +2282,16 @@ async function fetchAvailableModels() {
       .map((item) => item.id || item.name)
       .filter(Boolean);
     if (!models.length) throw new Error("没有返回模型列表");
-    const qwenModels = models.filter((model) => /^qwen/i.test(model));
-    state.settings.apiModels = [...new Set([...(qwenModels.length ? qwenModels : models), ...QWEN_MODEL_CANDIDATES])].sort();
+    state.settings.apiModels = [...new Set(models)].sort();
     if (!state.settings.apiModel || !state.settings.apiModels.includes(state.settings.apiModel)) {
-      state.settings.apiModel = state.settings.apiModels.find((model) => model === "qwen-plus") || state.settings.apiModels[0];
+      state.settings.apiModel = state.settings.apiModels[0] || "";
     }
     els.apiModel.value = state.settings.apiModel;
     renderModelOptions();
     saveState();
     showApiStatus(`已拉取 ${state.settings.apiModels.length} 个模型。`, "ok");
   } catch (error) {
-    if (isQwenUrl(state.settings.apiUrl)) {
-      applyQwenModelFallback("模型拉取失败，已提供千问常用模型候选。请确认地址里的 WorkspaceId 和密钥。");
-    } else {
-      showApiStatus(`模型拉取失败：${formatGenerationError(error)}`, "error");
-    }
+    showApiStatus(`模型拉取失败：${formatGenerationError(error)}`, "error");
   }
 }
 
@@ -2419,7 +2328,7 @@ async function testApiConnection() {
       showApiStatus("连接成功，剧情格式也可用。", "ok");
     } catch (formatError) {
       saveState();
-      showApiStatus("API 已接通，但模型没有按剧情 JSON 格式返回。可以继续使用；若生成失败，请换 qwen-plus 或重新点检验。", "ok");
+      showApiStatus("API 已接通，但模型没有按剧情 JSON 格式返回。可以继续使用；若生成失败，请更换模型或重新点检验。", "ok");
     }
   } catch (error) {
     showApiStatus(`检验失败：${formatGenerationError(error)}`, "error");
@@ -2453,7 +2362,7 @@ function normalizeStory(story, previous, text, variant, fixedEnv) {
       if (cleaned.line) {
         normalizedBlocks.push({
           type: "dialogue",
-          speaker: String(block.speaker || chooseNpc(text, variant).name),
+          speaker: String(block.speaker || fallbackNpcName(text, variant)),
           text: sanitizeNoPlayerControl(formatDialogueLine(cleaned.line), { narrative: false })
         });
       } else if (!cleaned.aside && rawDialogueText.trim()) {
@@ -2478,14 +2387,6 @@ function normalizeStory(story, previous, text, variant, fixedEnv) {
   if (!filteredBlocks.length) {
     throw new Error("API 返回内容为空或格式不符合要求，请调整模型输出格式。");
   }
-  const storyChars = countStoryTextChars(filteredBlocks);
-  if (storyChars < 300) {
-    throw new Error("API 返回的剧情正文少于 300 字，请重新生成更完整的剧情。");
-  }
-  if (storyChars > 800) {
-    throw new Error("API 返回的剧情正文超过 800 字，请重新生成更精炼的剧情。");
-  }
-
   return {
     env: safeEnv,
     blocks: filteredBlocks,
@@ -2495,15 +2396,7 @@ function normalizeStory(story, previous, text, variant, fixedEnv) {
   };
 }
 
-function countStoryTextChars(blocks) {
-  return (blocks || [])
-    .map((block) => block?.text || "")
-    .join("")
-    .replace(/\s+/g, "")
-    .length;
-}
-
-function assertStoryStatusQuality(story) {
+function assertStoryStatusQuality(story, previous = null) {
   const statuses = Array.isArray(story?.statuses) ? story.statuses : [];
   const relations = Array.isArray(story?.relations) ? story.relations : [];
   const storyText = getStoryPlainText(story);
@@ -2525,8 +2418,12 @@ function assertStoryStatusQuality(story) {
         throw new Error(`人物状态字段 ${field} 过于兜底或缺少剧情细节。`);
       }
     });
-    if (isAmbientPlaceholderName(name) && hasNamedNpcInScene && !storyText.includes(name)) {
+    if (isAmbientPlaceholderName(name)) {
       throw new Error("人物状态使用了占位角色名替代主要 NPC。");
+    }
+    const previousStatus = (previous?.statuses || []).find((item) => namesMatch(item?.name, name));
+    if (previousStatus && ["appearance", "posture", "thought", "impression"].every((field) => sameStatusText(status?.[field], previousStatus?.[field]))) {
+      throw new Error("人物状态与上一回合完全重复。");
     }
   });
   relations.forEach((relation) => {
@@ -2587,7 +2484,7 @@ function splitParagraphAndDialogue(text, prompt, variant) {
     }
     blocks.push({
       type: "dialogue",
-      speaker: cleanSpeakerName(speaker) || chooseNpc(prompt, variant).name,
+      speaker: cleanSpeakerName(speaker) || fallbackNpcName(prompt, variant),
       text: sanitizeNoPlayerControl(formatDialogueLine(line.trim()), { narrative: false })
     });
     last = pattern.lastIndex;
@@ -2602,7 +2499,7 @@ function splitParagraphAndDialogue(text, prompt, variant) {
 function normalizeDialogueSpeakers(blocks, prompt, variant, previous = null) {
   const resolver = createCharacterNameResolver(blocks, prompt, variant, previous);
   let lastNarrative = "";
-  let lastResolved = resolver.fallback?.name || chooseNpc(prompt, variant).name;
+  let lastResolved = resolver.fallback?.name || fallbackNpcName(prompt, variant);
   return (blocks || []).map((block) => {
     if (block.type !== "dialogue") {
       if (block.text) lastNarrative = `${lastNarrative} ${block.text}`.slice(-500);
@@ -2639,7 +2536,7 @@ function createCharacterNameResolver(blocks = [], prompt = "", variant = 0, prev
       const preferredCandidate = preferred ? candidates.find((candidate) => namesMatch(preferred, candidate.name)) : null;
       const picked = contextual || preferredCandidate || lastValid || fallback;
       lastValid = picked;
-      return picked.name || fallback.name;
+      return picked?.name || fallback?.name || "";
     }
     const matched = candidates.find((candidate) => namesMatch(cleaned, candidate.name));
     if (matched) {
@@ -2657,7 +2554,7 @@ function createCharacterNameResolver(blocks = [], prompt = "", variant = 0, prev
       lastValid = dynamic;
       return dynamic.name;
     }
-    return lastValid.name || fallback.name;
+    return lastValid?.name || fallback?.name || "";
   };
 
   return {
@@ -2737,11 +2634,10 @@ function inferGeneratedCharacters(blocks = [], prompt = "", variant = 0) {
     const name = cleanSpeakerName(block.speaker);
     if (!name || isInvalidCharacterName(name) || isPlayerCharacterName(name)) return;
     if (isLikelyOfficialCharacterName(name)) {
-      const picked = chooseNpc(`${prompt}${name}`, variant + index);
+      const picked = chooseNpc(`${prompt}${name}`, variant + index) || {};
       candidates.push({ ...picked, id: `generated-${normalizeCompareText(name).slice(0, 24) || index}`, name });
     }
   });
-  if (!candidates.length) candidates.push(chooseNpc(prompt, variant));
   return candidates;
 }
 
@@ -2749,6 +2645,7 @@ function isInvalidCharacterName(name) {
   const text = String(name || "").trim();
   if (!text) return true;
   if (isPlayerCharacterName(text)) return true;
+  if (isAmbientPlaceholderName(text)) return true;
   if (containsJsonFieldCode(text)) return true;
   if (text.length > 24 && !/^[A-Za-z][A-Za-z .'-]{1,40}$/.test(text)) return true;
   if (/^(NPC|旁白|叙事|环境|声音|声线|语气|低声|轻声|沙哑|喑哑|冷冷|淡淡|忽然|突然|门外|窗外|身后|远处|耳边|喉底|喉咙|嗓音|声音低|压低声音)$/i.test(text)) return true;
@@ -2771,7 +2668,6 @@ function isLikelyOfficialCharacterName(name) {
   if ((state.settings.npcs || []).some((npc) => npc.name && namesMatch(text, npc.name))) return true;
   if (/^[A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+){0,3}$/.test(text)) return true;
   if (/^[\u4e00-\u9fa5]{2,6}$/.test(text) && !/(声音|声线|语气|喉底|喉咙|嗓音|低声|轻声|沙哑|旁白|叙事|环境|暗影|阴影|走廊|门外|窗外|远处|附近|身后)/.test(text)) return true;
-  if (/^(热心邻居|谨慎旁观者|值夜管理员|安静陌生人|管理员|保安|邻居|老牧师)$/.test(text)) return true;
   return false;
 }
 
@@ -2909,20 +2805,18 @@ function namesMatch(a, b) {
 
 function chooseNpc(text, variant) {
   const savedNpcs = state.settings.npcs.filter((npc) => (npc.name || npc.detail || "").trim() && !isPlayerCharacterName(npc.name));
-  const ambientNpcs = [
-    { id: "ambient-neighbor", name: "热心邻居", gender: "未知", age: "三十岁上下", detail: "开朗话唠，爱做饭，容易关心刚认识的人。圆脸，面色红润，穿柔软的家居开衫。" },
-    { id: "ambient-witness", name: "谨慎旁观者", gender: "未知", age: "二十多岁", detail: "敏锐谨慎，说话前会先观察局势。短发，眼神清亮，深色外套。" },
-    { id: "ambient-guard", name: "值夜管理员", gender: "未知", age: "四十岁左右", detail: "谨慎克制，负责秩序，外冷内热，习惯把担心藏在严厉后面。肩背宽，制服整洁，眉间有浅纹。" },
-    { id: "ambient-stranger", name: "安静陌生人", gender: "未知", age: "未知", detail: "寡言克制，不轻易靠近别人。身形清瘦，衣领压得很低，动作很轻。" }
-  ];
-  const npcs = savedNpcs.length ? [...savedNpcs, ...ambientNpcs] : ambientNpcs;
-  const npc = npcs[(text.length + variant) % npcs.length];
+  if (!savedNpcs.length) return null;
+  const npc = savedNpcs[Math.abs(String(text || "").length + variant) % savedNpcs.length];
   return {
-    id: npc.id || "default-npc",
-    name: npc.name || "陌生人",
-    age: npc.age || "未知",
-    detail: npc.detail || "轮廓在光线里并不清晰，但注意力始终停在当前事件上。"
+    id: npc.id || `saved-${npc.name}`,
+    name: npc.name || "",
+    age: npc.age || "",
+    detail: npc.detail || ""
   };
+}
+
+function fallbackNpcName(text, variant) {
+  return chooseNpc(text, variant)?.name || "";
 }
 
 function getPresentNpcs(event, snapshot = latestSnapshot()) {
@@ -2965,7 +2859,7 @@ function getPresentNpcs(event, snapshot = latestSnapshot()) {
     addNpc(buildNpcFromResolvedName(resolved, event, index, story, status));
   });
 
-  return present.length ? present : [chooseNpc(event.prompt || "", event.variant || 0)];
+  return present;
 }
 
 function buildNpcFromResolvedName(name, event, index, story, status = null) {
@@ -2973,40 +2867,17 @@ function buildNpcFromResolvedName(name, event, index, story, status = null) {
   const saved = state.settings.npcs.find((npc) => npc.name && !isPlayerCharacterName(npc.name) && namesMatch(name, npc.name));
   if (saved) return saved;
   const apiStatus = status || (story?.statuses || []).find((item) => namesMatch(cleanStatusText(item?.name), name));
-  const picked = chooseNpc(`${event.prompt || ""}${name}`, (event.variant || 0) + index);
+  const picked = chooseNpc(`${event.prompt || ""}${name}`, (event.variant || 0) + index) || {};
   const statusDetail = apiStatus
     ? [apiStatus.appearance, apiStatus.posture, apiStatus.thought, apiStatus.impression].map(cleanStatusText).filter(Boolean).join("，")
     : "";
-  if (/邻居/.test(name)) {
-    return { ...picked, id: `speaker-${name}`, name, age: cleanStatusText(apiStatus?.age) || "三十岁上下", detail: statusDetail || "开朗话唠，热心，爱做饭，容易把关心藏在闲聊和食物里。面色红润，穿柔软的家居开衫。" };
-  }
-  if (/路人|旁观/.test(name)) {
-    return { ...picked, id: `speaker-${name}`, name, age: cleanStatusText(apiStatus?.age) || "未知", detail: statusDetail || "普通路人，心直口快，容易被糟糕环境惹得烦躁。衣着日常，神情不耐。" };
-  }
-  if (/管理员|保安|守夜/.test(name)) {
-    return { ...picked, id: `speaker-${name}`, name, age: cleanStatusText(apiStatus?.age) || "四十岁左右", detail: statusDetail || "谨慎克制，负责秩序，外冷内热。肩背宽，制服整洁，眉间有浅纹。" };
-  }
   return {
     ...picked,
     id: `speaker-${name}`,
     name,
-    age: cleanStatusText(apiStatus?.age) || picked.age || "未知",
+    age: cleanStatusText(apiStatus?.age) || picked.age || "",
     detail: statusDetail || picked.detail || ""
   };
-}
-
-function buildRelationDescription(npc, impression) {
-  const profile = parseCharacterProfile(npc, 0);
-  const playerName = getPlayerName();
-  if (profile.tone === "talkative") return `刚认识但愿意亲近，对${playerName}抱着热络好奇；${impression}`;
-  if (profile.tone === "gentle") return `保持温和距离，倾向先照顾${playerName}的处境；${impression}`;
-  if (profile.tone === "proud") return `互相试探中，不轻易示弱也不轻易信任；${impression}`;
-  if (profile.tone === "nervous") return `小心接触中，对${playerName}既好奇又不敢完全放松；${impression}`;
-  return `保持观察关系，态度会随你的下一步行动变化；${impression}`;
-}
-
-function pick(list, seed) {
-  return list[Math.abs(seed) % list.length];
 }
 
 function rebuildTimeline() {
@@ -3117,61 +2988,6 @@ function sameStatusText(a, b) {
   return normalizeCompareText(a) === normalizeCompareText(b);
 }
 
-function buildStatusField(field, context, offset = 0) {
-  const seed = context.seed + offset;
-  if (field === "appearance") return buildDynamicAppearance(context.npc, context.env, context.cue, seed);
-  if (field === "posture") return describePosture(context.env, seed, context.profile, context.cue);
-  if (field === "thought") return buildThought(context.npc, context.cue, context.memories, seed);
-  if (field === "impression") return buildImpression(context.npc, context.cue, seed);
-  return "";
-}
-
-function enforceFreshStatus(status, previous, context) {
-  const next = { ...status };
-  const profile = context.profile || context.npc?.profile || {};
-  const sourceFields = context.sourceFields || {};
-  if (context.npc?.detail) next.detail = context.npc.detail;
-  if (context.npc?.age && (!next.age || next.age === "未知")) next.age = context.npc.age;
-  const fields = ["appearance", "posture", "thought", "impression"];
-  fields.forEach((field, index) => {
-    const value = field === "thought" ? cleanThoughtText(next[field]) : cleanStatusText(next[field]);
-    const isFromApi = Boolean(sourceFields[field]);
-    const invalidThought = field === "thought" && !isFromApi && (!value || value.length < 30);
-    if (!value || invalidThought || (!isFromApi && sameStatusText(value, previous?.[field]))) {
-      next[field] = buildStatusField(field, context, 17 + index * 11);
-    } else {
-      next[field] = value;
-    }
-    if (!isFromApi && sameStatusText(next[field], previous?.[field])) {
-      next[field] = addSceneVariation(next[field], context.cue, context.seed + index);
-    }
-  });
-  const traitParts = [profile.traits?.hair, profile.traits?.skin, profile.traits?.face].filter(Boolean);
-  const missingTraits = traitParts.filter((trait) => {
-    const key = trait.replace(/色|皮肤|肤色|头发/g, "").slice(0, 2);
-    return key && !next.appearance.includes(key);
-  });
-  if (missingTraits.length) {
-    next.appearance = `${missingTraits.join("，")}，${next.appearance}`;
-  }
-  next.thought = ensureLongThought(cleanThoughtText(next.thought), next.name);
-  if (!sourceFields.thought && sameStatusText(next.thought, previous?.thought)) {
-    next.thought = ensureLongThought(buildStatusField("thought", context, 71), next.name);
-  }
-  next.impression = cleanStatusText(next.impression) || buildStatusField("impression", context, 83);
-  return next;
-}
-
-function addSceneVariation(text, cue, seed) {
-  const focus = sceneFocus(cue);
-  const tails = [
-    `这一刻，注意力明显被${focus}牵住了。`,
-    `和上一瞬相比，视线更多停在${focus}上。`,
-    `本回合的动静让这份反应比刚才更明显。`
-  ];
-  return `${String(text || "").replace(/[。；;]*$/g, "")}，${tails[Math.abs(seed) % tails.length]}`;
-}
-
 function applyAiEvent(snapshot, event) {
   const next = clone(snapshot);
   if (event.status === "loading" || event.status === "error") {
@@ -3180,8 +2996,6 @@ function applyAiEvent(snapshot, event) {
   next.seed += 1;
   next.env = event.story.env;
   const storyText = getStoryPlainText(event.story);
-  const cue = buildSceneCue(event.prompt || "", storyText, next.env);
-  const speechByNpc = collectDialogueBySpeaker(event.story);
   const previousStatuses = next.statuses || [];
   const currentStatuses = [];
   const npcs = getPresentNpcs(event, snapshot).map((npc, index) => {
@@ -3190,9 +3004,6 @@ function applyAiEvent(snapshot, event) {
   });
 
   npcs.forEach((npc) => {
-    const profile = parseCharacterProfile(npc, (event.variant || 0) + npc.offset);
-    const personalCue = [cue, speechByNpc[npc.name] || ""].filter(Boolean).join("，");
-    const statusSeed = (event.variant || 0) + npc.offset + next.seed;
     const apiStatus = findApiStatus(event.story.statuses, npc);
     const apiFields = {
       age: cleanStatusText(apiStatus?.age),
@@ -3201,49 +3012,32 @@ function applyAiEvent(snapshot, event) {
       thought: cleanThoughtText(apiStatus?.thought) || cleanStatusText(apiStatus?.thought),
       impression: cleanStatusText(apiStatus?.impression)
     };
-    let status = {
+    if (!apiFields.appearance || !apiFields.posture || !apiFields.thought || !apiFields.impression) return;
+    const status = {
       id: npc.id,
       name: npc.name,
       detail: npc.detail || npc.existing?.detail || "",
-      age: npc.age || npc.existing?.age || apiFields.age || "未知",
-      profile,
-      appearance: apiFields.appearance || buildDynamicAppearance({ ...npc, profile }, event.story.env, personalCue, statusSeed),
-      posture: apiFields.posture || describePosture(event.story.env, statusSeed, profile, personalCue),
-      thought: apiFields.thought || buildThought({ ...npc, profile }, personalCue, next.memories, statusSeed),
-      impression: apiFields.impression || buildImpression({ ...npc, profile }, personalCue, statusSeed)
+      age: npc.age || npc.existing?.age || apiFields.age || "",
+      appearance: apiFields.appearance,
+      posture: apiFields.posture,
+      thought: apiFields.thought,
+      impression: apiFields.impression
     };
-    status = enforceFreshStatus(status, npc.existing, {
-      npc: { ...npc, profile },
-      env: event.story.env,
-      cue: personalCue,
-      memories: next.memories,
-      seed: statusSeed,
-      profile,
-      sourceFields: {
-        appearance: Boolean(apiFields.appearance),
-        posture: Boolean(apiFields.posture),
-        thought: Boolean(apiFields.thought),
-        impression: Boolean(apiFields.impression)
-      }
-    });
     currentStatuses.push(status);
 
     const relation = next.relations.find((item) => item.id === npc.id || item.name === npc.name);
     const apiRelation = findApiRelation(event.story.relations, npc);
     const apiRelationDescription = cleanStatusText(apiRelation?.description);
     const apiAffection = Number(apiRelation?.affection);
-    const delta = event.source === "directive" ? 1 : Math.max(1, Math.min(6, (event.prompt || "").length % 7));
     if (relation) {
-      relation.affection = Number.isFinite(apiAffection)
-        ? clamp(apiAffection, -100, 100)
-        : clamp(Number(relation.affection || 0) + delta - (event.variant ? 1 : 0), -100, 100);
-      relation.description = apiRelationDescription || buildRelationDescription(npc, status.impression);
-    } else {
+      if (Number.isFinite(apiAffection)) relation.affection = clamp(apiAffection, -100, 100);
+      if (apiRelationDescription) relation.description = apiRelationDescription;
+    } else if (apiRelationDescription) {
       next.relations.push({
         id: npc.id,
         name: npc.name,
-        description: apiRelationDescription || buildRelationDescription(npc, status.impression),
-        affection: Number.isFinite(apiAffection) ? clamp(apiAffection, -100, 100) : delta
+        description: apiRelationDescription,
+        affection: Number.isFinite(apiAffection) ? clamp(apiAffection, -100, 100) : 0
       });
     }
   });
@@ -3392,257 +3186,6 @@ function extractDialogueSummary(story) {
     .filter((block) => block.type === "dialogue" && block.speaker && block.text)
     .map((block) => `${block.speaker}说“${block.text}”`);
   return dialogues.join("；");
-}
-
-function describePosture(env, variant, profile = {}, cue = "") {
-  const tone = profile.tone || "careful";
-  const place = env.place || "现场";
-  const focus = sceneFocus(cue);
-  const sets = {
-    talkative: [
-      `站在${place}靠近门口的位置，身体微微前倾，像是随时想搭话。`,
-      `一只手扶着旁边的桌沿，脚尖朝着你，肩膀放松得很自然。`,
-      `半倚在走道边，手里还攥着没放下的小物件，注意力一直往你这边飘。`
-    ],
-    gentle: [
-      `停在离你两三步远的位置，身体侧开半分，给你留出退路。`,
-      `双手轻轻交握在身前，站姿柔和，视线先落在你附近的环境上。`,
-      `靠近较亮的一侧站着，姿态安静，像是在等你先适应眼前局面。`
-    ],
-    proud: [
-      `站得笔直，肩线绷得很稳，视线从容地扫过${place}。`,
-      `侧身停在不远处，下颌微抬，姿势里带着一点不肯示弱的锋利。`,
-      `一手垂在身侧，另一只手压着衣角，像是不愿让情绪先露出来。`
-    ],
-    nervous: [
-      `贴着${place}边缘站着，手指不自觉收紧，又忍不住看向你。`,
-      `半步退在阴影旁，肩膀略缩，视线在你和周围动静之间来回移动。`,
-      `脚步停得很轻，像怕惊动什么，呼吸也跟着放慢了。`
-    ],
-    careful: [
-      `停在能看清你和${place}动静的位置，身体没有贸然靠近。`,
-      `微微侧身站着，视线压低，先把周围细节过了一遍。`,
-      `站在光线边缘，双手收得很稳，留意着${focus}。`
-    ],
-    irritable: [
-      `停在${place}边上，肩膀绷着，像是被糟糕的环境磨得没了耐心。`,
-      `一只手插在衣兜里，脚尖烦躁地点了点地，视线扫过走廊。`,
-      `站得不算近，脸色发沉，注意力被周围的动静牵着走。`
-    ]
-  };
-  const list = sets[tone] || sets.careful;
-  return list[Math.abs((cue || place).length + variant) % list.length];
-}
-
-function describeResponsivePosture(person, prompt, env, seed) {
-  const profile = person.profile || parseCharacterProfile(person, seed);
-  return describePosture(env, seed, profile, prompt);
-}
-
-function buildDynamicAppearance(npc, env, cue, variant) {
-  const profile = npc.profile || parseCharacterProfile(npc, variant);
-  const emotion = inferSceneEmotion(cue);
-  const expression = {
-    warm: ["眼里浮着笑意", "唇角压不住一点热络", "面色红润，神情很亮"],
-    tense: ["眉心轻轻蹙起", "唇线收紧，脸色比刚才淡了些", "眼神绷着一层警惕"],
-    curious: ["目光亮了一下", "眼尾带着明显的好奇", "神情像被什么细节勾住"],
-    guarded: ["视线克制地停了一瞬", "表情收得很稳", "神色没有完全放松"]
-  }[emotion];
-  const base = [
-    profile.hair,
-    profile.skin,
-    profile.face,
-    profile.clothes,
-    pick(expression, variant + cue.length),
-    sceneOuterDetail(cue, variant)
-  ].filter(Boolean);
-  return base.slice(0, 5).join("，") + "。";
-}
-
-function sceneOuterDetail(cue, variant) {
-  const text = String(cue || "");
-  const details = [];
-  if (/牛肉|饭|汤|厨房|吃/.test(text)) details.push("袖口和发梢像是还沾着一点厨房热气");
-  if (/门|锁|钥匙|防盗/.test(text)) details.push("目光总会往门锁和门缝那边偏一下");
-  if (/走廊|楼道|门口/.test(text)) details.push("身侧被走廊冷白的光勾出一圈浅边");
-  if (/雨|风|冷|夜/.test(text)) details.push("衣料边缘带着夜风压出的细小褶皱");
-  if (/笑|高兴|邀请|聊天/.test(text)) details.push("眉眼比刚才松开些，神色显得更亲近");
-  if (/危险|血|黑|怕|紧张|异常/.test(text)) details.push("脸色被当前动静压得更紧，眼神多了戒备");
-  if (!details.length) details.push("神情正被本回合的动静牵动着，细节比上一刻更鲜明");
-  return details[Math.abs(variant) % details.length];
-}
-
-function extractAppearanceTraits(detail) {
-  const text = String(detail || "");
-  const hairMatch = text.match(/[^，。；、\s]{0,10}(?:黑|白|银|金|棕|褐|灰|红|粉|蓝|紫|栗|茶)[^，。；、\s]{0,10}(?:发|头发|卷发|卷毛|长发|短发|马尾|刘海)/);
-  const skinMatch = text.match(/(?:白皮肤|白皙|冷白皮|小麦肤|肤色[^，。；、\s]{0,8}|皮肤[^，。；、\s]{0,8}|肤色偏白|肤色偏冷)/);
-  const faceMatch = text.match(/(?:高鼻梁|鼻梁[^，。；、\s]{0,8}|眼睛[^，。；、\s]{0,8}|眉眼[^，。；、\s]{0,8}|眉间[^，。；、\s]{0,8}|薄唇|唇色[^，。；、\s]{0,8}|圆脸|脸[^，。；、\s]{0,8}|轮廓[^，。；、\s]{0,8}|肩背[^，。；、\s]{0,8})/);
-  const clothesMatch = text.match(/(?:穿着|身穿|衣着|制服|家居开衫|开衫|长裙|衬衫|外套|风衣|披肩|靴子|手套)[^，。；、\s]{0,14}/);
-  return {
-    hair: hairMatch?.[0] || "",
-    skin: skinMatch?.[0] || "",
-    face: faceMatch?.[0] || "",
-    clothes: clothesMatch?.[0] || ""
-  };
-}
-
-function buildThought(person, cue, memories, variant) {
-  const name = typeof person === "string" ? person : person.name;
-  const profile = typeof person === "string" ? parseCharacterProfile({ name }, variant) : (person.profile || parseCharacterProfile(person, variant));
-  const playerName = getPlayerName();
-  const focus = sceneFocus(cue);
-  const memoryHint = sceneFocus((memories.instant.at(-1)?.text || memories.long.at(-1)?.text || "").replace(/^主控推动了剧情：/, ""));
-  const hooks = {
-    talkative: [
-      `我是不是该过去搭句话？${playerName}被${focus}牵在这里，肯定也不踏实。拿点热汤或者点心当借口应该不算突兀吧，可万一她不喜欢陌生人主动靠近呢？我别一开口就说个没完。`,
-      `${playerName}刚遇上这种动静，表情看着还算稳，可谁知道心里慌不慌。我要不要把吃的分一点过去？不行不行，别太热情把人吓到，先找个自然的话头。`
-    ],
-    gentle: [
-      `我不能靠得太近，别让${playerName}觉得被逼着回应。${focus}已经够让人紧张了，我先把声音放轻一点，给她留出退路。要是她愿意听，我再提醒她小心。`,
-      `${playerName}现在未必需要我插手，可我也不能装作没看见。先确认周围安不安全，再用不冒犯的方式开口，别把好意变成压力。`
-    ],
-    proud: [
-      `我不能表现得太在意，尤其是${focus}这种事，一急就显得我先乱了。${playerName}看起来也不迟钝，随便试探反而会露怯。先稳住，话要说得像我本来就掌握局面。`,
-      `${playerName}这一出现倒是把局面搅动了。她看人的样子不像毫无准备，我要把语气压住，别让她听出我其实也有点在意。`
-    ],
-    nervous: [
-      `刚才${focus}，我心里一下悬起来。${playerName}不像故意找麻烦的人，可我也不能完全放心。我要不要开口？万一说错话更尴尬怎么办，还是先别靠太近。`,
-      `怎么连一点声响都变得这么明显……我是不是该提醒${playerName}小心？可我自己都慌成这样，别一开口反而把事情弄得更糟。`
-    ],
-    irritable: [
-      `烦死了，偏偏这种时候又碰上${playerName}。她看起来不像故意添乱，可${focus}全搅在一起，谁心情能好？要不要提醒她一句？算了，别一上来就像找茬。`,
-      `我本来只想快点绕过这摊麻烦，现在又多了${playerName}这个新面孔。她倒不像难相处的人，可要是继续耗在这里，今晚肯定没完。`
-    ],
-    careful: [
-      `${playerName}刚才没有乱来，这点倒让我稍微松了一口气。可${focus}还压在眼前，我不能把戒心全放下。她要是再靠近一点，我得先看清她眼神。`,
-      `${playerName}不像那种一上来就添乱的人，可我也不想太快相信。她站在这里，偏偏让我没法彻底移开注意力，心里烦得很。`
-    ]
-  };
-  const list = hooks[profile.tone] || hooks.careful;
-  const thought = list[Math.abs(variant + focus.length) % list.length];
-  const memory = memoryHint && memoryHint !== "刚才的变化" ? ` 还有${memoryHint}这件事，我没法把${playerName}当成无关的人。` : "";
-  return `${thought}${memory}`;
-}
-
-function buildImpression(person, cue, variant) {
-  const profile = typeof person === "string" ? parseCharacterProfile({ name: person }, variant) : (person.profile || parseCharacterProfile(person, variant));
-  const playerName = getPlayerName();
-  const focus = sceneFocus(cue);
-  const impressions = {
-    talkative: [
-      `${playerName}看起来还不错，应该能聊上几句；眼下正适合用食物或闲聊自然靠近。`,
-      `${playerName}像是可以慢慢熟起来的新面孔，但还不确定她喜不喜欢被人热情靠近。`
-    ],
-    gentle: [
-      `${playerName}让人想保持温和距离；看得出她正在处理眼前状况，所以不适合贸然逼近。`,
-      `并不讨厌${playerName}，反而有点担心她会被${focus}牵连，只是还不确定该不该插手。`
-    ],
-    proud: [
-      `${playerName}不是可以随便糊弄的人；她让局势有了变化，因此值得认真看待，但暂时不能表现得太在意。`,
-      `${playerName}是个难以判断的新变量，既不能轻视，也不想过早示弱。`
-    ],
-    nervous: [
-      `${playerName}看起来不算危险，但她的出现让现场多了变数，需要再观察一会儿才敢放松。`,
-      `${playerName}像是可以求助又不太敢靠近的人，印象还停在小心试探的阶段。`
-    ],
-    irritable: [
-      `${playerName}这个刚搬来的新邻居暂时还看不出麻烦；印象不坏，只是眼前这些破事让人没法好声好气。`,
-      `${playerName}看起来还算讲理，但现在环境太糟，情绪很容易先被走廊里的动静带偏。`
-    ],
-    careful: [
-      `${playerName}值得继续观察；她没有完全越界，但眼前这些动静让此人暂时保留判断。`,
-      `暂时不排斥${playerName}，不过信任还没有建立，需要看她接下来是否稳定。`
-    ]
-  };
-  const list = impressions[profile.tone] || impressions.careful;
-  return list[Math.abs(variant + focus.length) % list.length];
-}
-
-function parseCharacterProfile(person, seed = 0) {
-  if (person.profile) return person.profile;
-  const detail = String(person.detail || "");
-  const tone = inferPersonalityTone(detail, person.name || "", seed);
-  const traits = extractAppearanceTraits(detail);
-  const fallback = fallbackAppearance(tone, seed);
-  return {
-    tone,
-    traits,
-    hair: traits.hair || fallback.hair,
-    skin: traits.skin || fallback.skin,
-    face: traits.face || fallback.face,
-    clothes: traits.clothes || fallback.clothes
-  };
-}
-
-function inferPersonalityTone(detail, name, seed = 0) {
-  const text = `${detail} ${name}`;
-  if (/开朗|话唠|健谈|热情|外向|爱聊天|爱做饭|邻居/.test(text)) return "talkative";
-  if (/烦躁|不耐|心直口快|抱怨|脾气急/.test(text)) return "irritable";
-  if (/温柔|体贴|柔和|照顾|善良|耐心/.test(text)) return "gentle";
-  if (/傲慢|高傲|嘴硬|毒舌|强势|冷淡/.test(text)) return "proud";
-  if (/胆小|怯懦|不安|紧张|怕生|慌张/.test(text)) return "nervous";
-  if (/克制|冷静|沉稳|理性|谨慎|敏锐|观察|守序|正直/.test(text)) return "careful";
-  return ["talkative", "gentle", "careful", "nervous", "proud"][Math.abs((name.length || 1) + seed) % 5];
-}
-
-function fallbackAppearance(tone, seed) {
-  const sets = {
-    talkative: [
-      { hair: "蓬松的短发有点乱", skin: "面色红润", face: "圆润的脸上带着笑", clothes: "柔软开衫的袖口卷到手腕" },
-      { hair: "棕色发尾翘着一点", skin: "脸颊透着暖色", face: "眼睛很亮", clothes: "围裙边缘还沾着一点水汽" }
-    ],
-    gentle: [
-      { hair: "柔顺的黑发贴在耳侧", skin: "肤色干净温和", face: "眉眼舒展", clothes: "浅色外套整理得很平整" },
-      { hair: "低束的发尾垂在肩后", skin: "脸色柔和", face: "目光很安静", clothes: "针织衣料看起来很软" }
-    ],
-    proud: [
-      { hair: "利落的深色短发", skin: "肤色偏冷", face: "鼻梁挺直，唇线清晰", clothes: "外套扣得一丝不乱" },
-      { hair: "整齐的长发束在身后", skin: "脸色冷白", face: "眉眼锋利", clothes: "衣领压得很正" }
-    ],
-    nervous: [
-      { hair: "额前碎发微微散着", skin: "脸色有点发白", face: "眼神躲闪又忍不住看人", clothes: "外套袖口被攥出细褶" },
-      { hair: "软塌的刘海遮住一点眉眼", skin: "脸颊泛着紧张的浅红", face: "嘴唇抿得很紧", clothes: "衣摆被手指捏住" }
-    ],
-    irritable: [
-      { hair: "短发被风吹得有些乱", skin: "脸色被冷光衬得发灰", face: "眉头拧着，嘴角压得很低", clothes: "日常外套的拉链拉到一半" },
-      { hair: "额发乱糟糟地贴在额前", skin: "面色不太好看", face: "眼神里带着明显的不耐", clothes: "衣角沾着一点灰" }
-    ],
-    careful: [
-      { hair: "短发收拾得很利落", skin: "脸色平稳", face: "眼神清醒克制", clothes: "深色外套没有多余装饰" },
-      { hair: "发丝整齐地别在耳后", skin: "肤色在光里显得偏冷", face: "眉心压着一点思索", clothes: "衣袖干净，动作幅度很小" }
-    ]
-  };
-  const list = sets[tone] || sets.careful;
-  return list[Math.abs(seed) % list.length];
-}
-
-function inferSceneEmotion(cue) {
-  if (/笑|高兴|邀请|吃|饭|汤|邻居|聊天|轻松|温暖/.test(cue)) return "warm";
-  if (/危险|门缝|响|血|黑|暗|锁|防盗|紧张|害怕|失败/.test(cue)) return "tense";
-  if (/看|观察|发现|线索|奇怪|新|第一次/.test(cue)) return "curious";
-  return "guarded";
-}
-
-function trimCue(cue) {
-  const clean = String(cue || "").replace(/\s+/g, " ").replace(/^主控推动了剧情：/, "").trim();
-  return clean.slice(0, 26) || "刚才的变化";
-}
-
-function sceneFocus(cue) {
-  const text = String(cue || "");
-  const parts = [];
-  if (/搬进|新公寓|新邻居|公寓/.test(text)) parts.push("新邻居刚搬进来");
-  if (/牛肉|炖|饭|汤|吃|厨房/.test(text)) parts.push("热乎的饭菜正好能当作搭话借口");
-  if (/门缝|钥匙|防盗门|锁/.test(text)) parts.push("门口和锁边的异常动静");
-  if (/走廊|楼道|路人|感应灯/.test(text)) parts.push("走廊里忽明忽暗的动静");
-  if (/雨|风|冷|夜|暗/.test(text)) parts.push("屋外阴冷的天气");
-  if (/观察|看|发现|线索/.test(text)) parts.push("你正在留意现场细节");
-  if (!parts.length) return trimCue(text);
-  return [...new Set(parts)].slice(0, 2).join("，");
-}
-
-function buildSceneCue(prompt, storyText, env) {
-  return [prompt, storyText, env?.place, env?.weather].filter(Boolean).join("，");
 }
 
 function getStoryPlainText(story) {
@@ -4137,7 +3680,6 @@ function bindEvents() {
   els.saveWorldButton.addEventListener("click", () => saveSection("world"));
   els.saveCharacterButton.addEventListener("click", () => saveSection("character"));
   els.saveApiButton.addEventListener("click", () => saveSection("api"));
-  els.qwenPresetButton.addEventListener("click", applyQwenPreset);
   els.fetchModelsButton.addEventListener("click", fetchAvailableModels);
   els.testApiButton.addEventListener("click", testApiConnection);
 
